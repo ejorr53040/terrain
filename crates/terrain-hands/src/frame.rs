@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{Mat3, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 
 /// MediaPipe hand landmark indices used by terrain.
@@ -41,9 +41,31 @@ impl Hand {
         self.world[landmark::THUMB_TIP].distance(self.world[landmark::INDEX_TIP])
     }
 
-    /// Mean image position of the palm landmarks.
-    pub fn palm_image_center(&self) -> Vec3 {
-        landmark::PALM.iter().map(|&i| self.image[i]).sum::<Vec3>() / landmark::PALM.len() as f32
+    /// World landmark `i` in camera axes: meters, x right, y up, z away from the camera.
+    pub fn world_in_camera(&self, i: usize) -> Vec3 {
+        let w = self.world[i];
+        Vec3::new(w.x, -w.y, w.z)
+    }
+
+    /// Palm center relative to the world-landmark origin, in camera axes.
+    pub fn palm_center_offset(&self) -> Vec3 {
+        landmark::PALM
+            .iter()
+            .map(|&i| self.world_in_camera(i))
+            .sum::<Vec3>()
+            / landmark::PALM.len() as f32
+    }
+
+    /// Orientation of the palm in camera axes: y toward the fingers, z out of
+    /// the palm's plane, built from the wrist and the index and pinky knuckles.
+    pub fn palm_rotation(&self) -> Quat {
+        let wrist = self.world_in_camera(landmark::WRIST);
+        let index = self.world_in_camera(landmark::INDEX_MCP) - wrist;
+        let pinky = self.world_in_camera(landmark::PINKY_MCP) - wrist;
+        let fingers = (index + pinky).normalize();
+        let normal = index.cross(pinky).normalize();
+        let side = fingers.cross(normal);
+        Quat::from_mat3(&Mat3::from_cols(side, fingers, normal))
     }
 }
 

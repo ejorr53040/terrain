@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{Mat3, Quat, Vec3};
 
 use crate::{Hand, HandFrame};
 
@@ -6,9 +6,6 @@ use crate::{Hand, HandFrame};
 const PINCH_CLOSE_M: f32 = 0.03;
 /// ...and opens above this one. The gap between them stops flicker.
 const PINCH_OPEN_M: f32 = 0.05;
-
-/// Hand distance from the camera until depth is estimated (ticket 3).
-const ASSUMED_DEPTH_M: f32 = 0.5;
 
 /// Pinhole model of the webcam.
 #[derive(Clone, Copy, Debug)]
@@ -28,16 +25,33 @@ impl Default for CameraModel {
 }
 
 impl CameraModel {
-    /// Camera-space point (meters; x right, y up, z = distance) for a
-    /// normalized image point seen at `depth`.
-    fn unproject(&self, image: Vec3, depth: f32) -> Vec3 {
-        let half_w = (self.hfov_deg.to_radians() / 2.0).tan();
-        let half_h = half_w / self.aspect;
-        Vec3::new(
-            (image.x - 0.5) * 2.0 * half_w * depth,
-            -(image.y - 0.5) * 2.0 * half_h * depth,
-            depth,
-        )
+    /// Where the hand's world-landmark origin sits in camera space (meters;
+    /// x right, y up, z = distance from the camera).
+    ///
+    /// World landmarks give the hand's true shape in meters, already aligned
+    /// with the camera's axes; image landmarks say where each one lands on
+    /// screen. For a pinhole camera every landmark then gives two equations
+    /// that are linear in the unknown origin, so a least-squares solve over
+    /// all 21 recovers position and depth together, exact under perspective.
+    fn locate(&self, hand: &Hand) -> Vec3 {
+        let a = 2.0 * (self.hfov_deg.to_radians() / 2.0).tan();
+        let b = a / self.aspect;
+        let mut normal = Mat3::ZERO;
+        let mut rhs = Vec3::ZERO;
+        for i in 0..21 {
+            let w = hand.world_in_camera(i);
+            let du = hand.image[i].x - 0.5;
+            let dv = hand.image[i].y - 0.5;
+            // u: x / (a z) = du    v: -y / (b z) = dv
+            for (row, value) in [
+                (Vec3::new(1.0, 0.0, -a * du), a * du * w.z - w.x),
+                (Vec3::new(0.0, -1.0, -b * dv), b * dv * w.z + w.y),
+            ] {
+                normal += Mat3::from_cols(row * row.x, row * row.y, row * row.z);
+                rhs += row * value;
+            }
+        }
+        normal.inverse() * rhs
     }
 }
 
@@ -46,6 +60,8 @@ impl CameraModel {
 pub struct HandState {
     /// Palm center: meters, x right, y up, z = distance from the camera.
     pub position: Vec3,
+    /// Palm orientation in camera space; only changes in it are meaningful.
+    pub rotation: Quat,
     pub pinching: bool,
 }
 
@@ -72,9 +88,8 @@ impl HandStateEstimator {
         };
         self.pinching = self.next_pinch(hand);
         Some(HandState {
-            position: self
-                .camera
-                .unproject(hand.palm_image_center(), ASSUMED_DEPTH_M),
+            position: self.camera.locate(hand) + hand.palm_center_offset(),
+            rotation: hand.palm_rotation(),
             pinching: self.pinching,
         })
     }

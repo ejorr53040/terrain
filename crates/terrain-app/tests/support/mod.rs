@@ -10,8 +10,8 @@ use terrain_hands::{CameraModel, Hand, HandFrame, HandSource, Handedness, Replay
 /// Thumb-to-index gap of a firmly closed pinch, in meters.
 pub const PINCHED_GAP: f32 = 0.01;
 
-/// An open right hand, palm to the camera, fingers up. Meters, origin near
-/// the palm center, x right, y up, z away from the camera.
+/// An open right hand, palm to the camera, fingers up. Meters, x right, y up,
+/// z away from the camera. `hand` re-centers it on the palm.
 const OPEN_HAND: [[f32; 3]; 21] = [
     [0.000, -0.070, 0.0], // 0 wrist
     [-0.030, -0.050, 0.0],
@@ -43,6 +43,8 @@ pub struct Pose {
     pub at: Vec3,
     /// Thumb-tip to index-tip distance in meters; `None` leaves the hand open.
     pub pinch_gap: Option<f32>,
+    /// Turn of the hand about its palm center, from palm-to-camera, fingers-up.
+    pub rotation: Quat,
 }
 
 impl Pose {
@@ -50,6 +52,7 @@ impl Pose {
         Self {
             at,
             pinch_gap: None,
+            rotation: Quat::IDENTITY,
         }
     }
 
@@ -61,7 +64,12 @@ impl Pose {
         Self {
             at,
             pinch_gap: Some(gap),
+            rotation: Quat::IDENTITY,
         }
+    }
+
+    pub fn rotated(self, rotation: Quat) -> Self {
+        Self { rotation, ..self }
     }
 }
 
@@ -72,6 +80,8 @@ pub fn hand(pose: Pose) -> Hand {
     if let Some(gap) = pose.pinch_gap {
         local[4] = local[8] + Vec3::new(-gap, 0.0, 0.0);
     }
+    let palm = [0, 5, 9, 13, 17].map(|i| local[i]).iter().sum::<Vec3>() / 5.0;
+    let local = local.map(|p| pose.rotation * (p - palm));
     // Project with our own pinhole math, using the app's default camera values,
     // so the app's unprojection is checked rather than reused.
     let camera = CameraModel::default();
@@ -139,5 +149,13 @@ pub fn assert_near(actual: Vec3, expected: Vec3) {
     assert!(
         actual.abs_diff_eq(expected, 1e-3),
         "expected {expected}, got {actual}"
+    );
+}
+
+pub fn assert_turned(actual: Quat, expected: Quat) {
+    let off = actual.angle_between(expected).to_degrees();
+    assert!(
+        off < 0.5,
+        "expected {expected}, got {actual} ({off:.2}° off)"
     );
 }
