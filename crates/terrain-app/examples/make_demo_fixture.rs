@@ -1,5 +1,5 @@
 //! Writes `fixtures/demo-drag.json`: a hand that pinches, drags the cube
-//! around a circle back to where it started, and lets go.
+//! around a circle back to where it started, pauses, and lets go.
 //!
 //! cargo run -p terrain-app --example make_demo_fixture
 
@@ -20,6 +20,9 @@ fn main() {
         let offset = Vec3::new(a.cos() - 1.0, a.sin(), 0.0) * 0.08;
         poses.push(Pose::pinched(start + offset));
     }
+    // Settle before letting go, as a real hand does, so the smoothed hand
+    // has caught up and the cube is dropped where it started.
+    poses.extend([Pose::pinched(start); 15]);
     poses.extend([Pose::open(start); 30]);
 
     let frames: Vec<_> = poses

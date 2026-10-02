@@ -1,6 +1,11 @@
+use std::collections::HashMap;
+
 use glam::{Mat3, Quat, Vec3};
 
-use crate::{Hand, HandFrame};
+use crate::{
+    Hand, HandFrame, Handedness,
+    smoothing::{OneEuro, QuatFilter, Vec3Filter},
+};
 
 /// Pinch closes below this thumb-tip to index-tip distance (meters)...
 const PINCH_CLOSE_M: f32 = 0.03;
@@ -67,49 +72,62 @@ impl CameraModel {
     }
 }
 
-/// What a hand is doing, in camera space.
+/// What a hand is doing, in camera space, smoothed.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HandState {
+    /// Which hand; also how a hand is told apart from frame to frame.
+    pub handedness: Handedness,
     /// Palm center: meters, x right, y up, z = distance from the camera.
     pub position: Vec3,
     /// Palm orientation in camera space; only changes in it are meaningful.
     pub rotation: Quat,
     pub pinching: bool,
+    /// The pinch closed in this frame: it was open in the hand's last one.
+    pub pinch_started: bool,
 }
 
-/// Turns `HandFrame`s into `HandState`s, remembering what it needs between frames.
-#[derive(Default)]
-pub struct HandStateEstimator {
-    camera: CameraModel,
+/// The hands seen in one `HandFrame`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TrackedHands {
+    /// The frame's capture time.
+    pub t_ms: u64,
+    pub hands: Vec<HandState>,
+}
+
+/// A hand unseen for longer than this starts over: its smoothing and pinch
+/// state are dropped rather than gliding from where it was last seen.
+pub const FORGET_AFTER_MS: u64 = 300;
+
+/// Smoothing for palm position (meters).
+const POSITION_SMOOTHING: OneEuro = OneEuro {
+    min_cutoff: 1.0,
+    beta: 20.0,
+    d_cutoff: 1.0,
+};
+
+/// Smoothing for palm rotation (radians).
+const ROTATION_SMOOTHING: OneEuro = OneEuro {
+    min_cutoff: 1.0,
+    beta: 0.5,
+    d_cutoff: 1.0,
+};
+
+/// What's remembered about one hand between frames.
+struct Track {
+    last_seen_ms: u64,
     pinching: bool,
+    position: Vec3Filter,
+    rotation: QuatFilter,
 }
 
-impl HandStateEstimator {
-    pub fn new(camera: CameraModel) -> Self {
+impl Track {
+    fn new(t_ms: u64) -> Self {
         Self {
-            camera,
+            last_seen_ms: t_ms,
             pinching: false,
+            position: Vec3Filter::new(POSITION_SMOOTHING),
+            rotation: QuatFilter::new(ROTATION_SMOOTHING),
         }
-    }
-
-    /// The state of the first hand in `frame`, if any.
-    pub fn update(&mut self, frame: &HandFrame) -> Option<HandState> {
-        let Some(hand) = frame.hands.first() else {
-            self.pinching = false;
-            return None;
-        };
-        let (Some(origin), Some(rotation)) = (self.camera.locate(hand), hand.palm_rotation())
-        else {
-            // Degenerate landmarks: treat as no hand rather than feed NaNs on.
-            self.pinching = false;
-            return None;
-        };
-        self.pinching = self.next_pinch(hand);
-        Some(HandState {
-            position: origin + hand.palm_center_offset(),
-            rotation,
-            pinching: self.pinching,
-        })
     }
 
     fn next_pinch(&self, hand: &Hand) -> bool {
@@ -119,5 +137,58 @@ impl HandStateEstimator {
         } else {
             gap < PINCH_CLOSE_M
         }
+    }
+}
+
+/// Turns `HandFrame`s into smoothed `HandState`s, one track per hand.
+#[derive(Default)]
+pub struct HandStateEstimator {
+    camera: CameraModel,
+    tracks: HashMap<Handedness, Track>,
+}
+
+impl HandStateEstimator {
+    pub fn new(camera: CameraModel) -> Self {
+        Self {
+            camera,
+            tracks: HashMap::new(),
+        }
+    }
+
+    /// The smoothed state of every usable hand in `frame`. Hands unseen for
+    /// longer than `FORGET_AFTER_MS` start over.
+    pub fn update(&mut self, frame: &HandFrame) -> TrackedHands {
+        let t_ms = frame.t_ms;
+        self.tracks
+            .retain(|_, track| t_ms.saturating_sub(track.last_seen_ms) <= FORGET_AFTER_MS);
+        let hands = frame
+            .hands
+            .iter()
+            .filter_map(|hand| self.track(hand, t_ms))
+            .collect();
+        TrackedHands { t_ms, hands }
+    }
+
+    fn track(&mut self, hand: &Hand, t_ms: u64) -> Option<HandState> {
+        // Degenerate landmarks: skip the hand rather than feed NaNs on.
+        let origin = self.camera.locate(hand)?;
+        let rotation = hand.palm_rotation()?;
+        let track = self
+            .tracks
+            .entry(hand.handedness)
+            .or_insert_with(|| Track::new(t_ms));
+        let dt = t_ms.saturating_sub(track.last_seen_ms) as f32 / 1000.0;
+        track.last_seen_ms = t_ms;
+        let was_pinching = track.pinching;
+        track.pinching = track.next_pinch(hand);
+        Some(HandState {
+            handedness: hand.handedness,
+            position: track
+                .position
+                .filter(origin + hand.palm_center_offset(), dt),
+            rotation: track.rotation.filter(rotation, dt),
+            pinching: track.pinching,
+            pinch_started: track.pinching && !was_pinching,
+        })
     }
 }

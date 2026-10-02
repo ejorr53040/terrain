@@ -3,7 +3,7 @@
 use std::sync::Mutex;
 
 use bevy::prelude::*;
-use terrain_hands::{HandSource, HandState, HandStateEstimator};
+use terrain_hands::{FORGET_AFTER_MS, HandSource, HandState, HandStateEstimator, TrackedHands};
 
 /// Hand motion is amplified by this much when applied to a grabbed entity,
 /// so small, comfortable movements cover the scene.
@@ -41,7 +41,7 @@ impl Plugin for GrabPlugin {
         app.insert_resource(Hands {
             source: Mutex::new(source),
             estimator: HandStateEstimator::default(),
-            current: None,
+            fresh: None,
         })
         .init_resource::<Grab>()
         .add_systems(Update, (read_hands, drive_grab).chain());
@@ -52,26 +52,30 @@ impl Plugin for GrabPlugin {
 struct Hands {
     source: Mutex<Box<dyn HandSource>>,
     estimator: HandStateEstimator,
-    /// The latest hand state; kept between frames when the source has nothing new.
-    current: Option<HandState>,
+    /// Hands from a frame that arrived this update, not yet acted on.
+    fresh: Option<TrackedHands>,
 }
 
-/// The entity being held, and where it and the hand were when the pinch began.
+/// The entity being held, if any.
 #[derive(Resource, Default)]
 struct Grab {
-    held: Option<GrabStart>,
+    held: Option<Held>,
 }
 
-struct GrabStart {
+/// A grab in progress: what's held, by which hand, and where the hand and
+/// the entity were when the pinch began.
+struct Held {
     entity: Entity,
     hand: HandState,
     transform: Transform,
+    /// Capture time of the last frame the holding hand was seen in.
+    last_seen_ms: u64,
 }
 
-fn read_hands(mut hands: ResMut<Hands>) {
+fn read_hands(time: Res<Time>, mut hands: ResMut<Hands>) {
     let hands = &mut *hands;
-    if let Some(frame) = hands.source.get_mut().unwrap().next_frame() {
-        hands.current = hands.estimator.update(&frame);
+    if let Some(frame) = hands.source.get_mut().unwrap().next_frame(time.elapsed()) {
+        hands.fresh = Some(hands.estimator.update(&frame));
     }
 }
 
@@ -79,33 +83,56 @@ fn read_hands(mut hands: ResMut<Hands>) {
 /// since the pinch began, times `GRAB_GAIN`, and turns by the hand's turn
 /// since then. Camera space (x right, y up, z away from the camera, i.e.
 /// toward the viewer) lines up with the scene's axes.
+///
+/// The first hand to pinch holds the entity; the other hand is ignored until
+/// it lets go, and then only grabs by starting a new pinch. If the holding hand drops out of tracking the entity freezes,
+/// and is released once the hand has been gone longer than `FORGET_AFTER_MS`.
 fn drive_grab(
-    hands: Res<Hands>,
+    mut hands: ResMut<Hands>,
     mut grab: ResMut<Grab>,
     mut grabbables: Query<(Entity, &mut Transform), With<Grabbable>>,
 ) {
-    let Some(hand) = hands.current.filter(|h| h.pinching) else {
-        grab.held = None;
+    let Some(frame) = hands.fresh.take() else {
         return;
     };
-    match &grab.held {
-        None => {
-            if let Some((entity, transform)) = grabbables.iter().next() {
-                grab.held = Some(GrabStart {
-                    entity,
-                    hand,
-                    transform: *transform,
-                });
-            }
+    // Checked against each new frame, not only hand-less ones: the tracker
+    // may go quiet and come back with the hand already there.
+    if grab
+        .held
+        .as_ref()
+        .is_some_and(|held| frame.t_ms.saturating_sub(held.last_seen_ms) > FORGET_AFTER_MS)
+    {
+        grab.held = None;
+    }
+    let Some(held) = &mut grab.held else {
+        if let Some(hand) = frame.hands.iter().find(|h| h.pinch_started)
+            && let Some((entity, transform)) = grabbables.iter().next()
+        {
+            grab.held = Some(Held {
+                entity,
+                hand: *hand,
+                transform: *transform,
+                last_seen_ms: frame.t_ms,
+            });
         }
-        Some(start) => {
-            if let Ok((_, mut transform)) = grabbables.get_mut(start.entity) {
+        return;
+    };
+    match frame
+        .hands
+        .iter()
+        .find(|h| h.handedness == held.hand.handedness)
+    {
+        Some(hand) if hand.pinching => {
+            held.last_seen_ms = frame.t_ms;
+            if let Ok((_, mut transform)) = grabbables.get_mut(held.entity) {
                 transform.translation =
-                    start.transform.translation + GRAB_GAIN * (hand.position - start.hand.position);
+                    held.transform.translation + GRAB_GAIN * (hand.position - held.hand.position);
                 // The hand's turn since the pinch, applied in the scene frame (on the left).
                 transform.rotation =
-                    hand.rotation * start.hand.rotation.inverse() * start.transform.rotation;
+                    hand.rotation * held.hand.rotation.inverse() * held.transform.rotation;
             }
         }
+        Some(_) => grab.held = None,
+        None => {}
     }
 }

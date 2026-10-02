@@ -2,9 +2,10 @@
 //! they are doing (`HandState`). No Bevy dependency.
 
 mod frame;
+mod smoothing;
 mod source;
 mod state;
 
 pub use frame::{Hand, HandFrame, Handedness, landmark};
 pub use source::{HandSource, ReplaySource};
-pub use state::{CameraModel, HandState, HandStateEstimator};
+pub use state::{CameraModel, FORGET_AFTER_MS, HandState, HandStateEstimator, TrackedHands};
