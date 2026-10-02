@@ -3,10 +3,12 @@
 //! overlay with the capture frame rate and tracking stats.
 
 use std::{
+    collections::VecDeque,
     sync::Mutex,
     time::{Duration, Instant},
 };
 
+use crate::Calibration;
 use bevy::math::Vec2;
 use bevy::{
     asset::RenderAssetUsages,
@@ -93,6 +95,7 @@ impl Plugin for PreviewPlugin {
             hands: 0,
             track_time: Duration::ZERO,
             rate: FrameRate::default(),
+            latency: Latency::default(),
             wanted: true,
             has_frame: false,
         })
@@ -120,6 +123,7 @@ struct LiveTracking {
     /// How long tracking took on the latest frame.
     track_time: Duration,
     rate: FrameRate,
+    latency: Latency,
     /// The user wants the preview shown (`P` toggles this).
     wanted: bool,
     /// A camera image has reached the preview texture.
@@ -137,12 +141,39 @@ impl LiveTracking {
         }
         match self.rate.fps() {
             Some(fps) => format!(
-                "capture: {fps:.1} fps\nhands: {} (track {:.0} ms)",
+                "capture: {fps:.1} fps, latency {:.0} ms\nhands: {} (track {:.0} ms)",
+                self.latency.median().as_secs_f32() * 1e3,
                 self.hands,
                 self.track_time.as_secs_f32() * 1e3
             ),
             None => "capture: waiting for camera…".into(),
         }
+    }
+}
+
+/// Capture-to-display latency over the last second of frames: from the
+/// camera's capture stamp to the update that applies the frame, plus one
+/// render frame to reach the screen.
+#[derive(Default)]
+struct Latency {
+    recent: VecDeque<Duration>,
+}
+
+impl Latency {
+    /// Frames the median is taken over: a second at 30 fps.
+    const WINDOW: usize = 30;
+
+    fn record(&mut self, latency: Duration) {
+        if self.recent.len() == Self::WINDOW {
+            self.recent.pop_front();
+        }
+        self.recent.push_back(latency);
+    }
+
+    fn median(&self) -> Duration {
+        let mut sorted: Vec<_> = self.recent.iter().copied().collect();
+        sorted.sort();
+        sorted.get(sorted.len() / 2).copied().unwrap_or_default()
     }
 }
 
@@ -226,6 +257,7 @@ fn spawn_preview(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 }
 
 fn show_latest_frame(
+    time: Res<Time>,
     mut tracking: ResMut<LiveTracking>,
     mut images: ResMut<Assets<Image>>,
     preview: Query<&ImageNode, With<Preview>>,
@@ -236,6 +268,9 @@ fn show_latest_frame(
     };
     let mut frame = tracked.frame;
     tracking.rate.record(&frame);
+    tracking
+        .latency
+        .record(frame.captured.elapsed() + time.delta());
     tracking.hands = tracked.hands.len();
     tracking.track_time = tracked.track_time;
     for hand in &tracked.hands {
@@ -279,11 +314,19 @@ fn show_preview(tracking: Res<LiveTracking>, mut preview: Query<&mut Visibility,
     });
 }
 
-fn show_stats(tracking: Res<LiveTracking>, mut text: Query<&mut Text, With<StatsText>>) {
+fn show_stats(
+    time: Res<Time>,
+    tracking: Res<LiveTracking>,
+    calibration: Option<Res<Calibration>>,
+    mut text: Query<&mut Text, With<StatsText>>,
+) {
     let Ok(mut text) = text.single_mut() else {
         return;
     };
-    let status = tracking.status();
+    let mut status = tracking.status();
+    if let Some(line) = calibration.and_then(|c| c.status(time.elapsed())) {
+        status = format!("{status}\n{line}");
+    }
     if text.0 != status {
         text.0 = status;
     }

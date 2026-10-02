@@ -92,47 +92,88 @@ impl Pose {
     }
 }
 
-/// Builds the MediaPipe-shaped `Hand` a tracker would report for `pose`:
-/// world landmarks in meters (y down), image landmarks normalized (y down).
-pub fn hand(pose: Pose) -> Hand {
-    let mut local = OPEN_HAND.map(Vec3::from_array);
-    if let Some(gap) = pose.pinch_gap {
-        local[4] = local[8] + Vec3::new(-gap, 0.0, 0.0);
-    }
-    let palm = landmark::PALM.map(|i| local[i]).iter().sum::<Vec3>() / landmark::PALM.len() as f32;
-    let local = local.map(|p| pose.rotation * (p - palm));
-    // Project with our own pinhole math, using the app's default camera values,
-    // so the app's unprojection is checked rather than reused.
-    let camera = CameraModel::default();
-    let half_w = (camera.hfov_deg.to_radians() / 2.0).tan();
-    let half_h = half_w / camera.aspect;
-    let image = local.map(|p| {
-        let c = pose.at + p;
-        Vec3::new(
-            0.5 + c.x / (2.0 * half_w * c.z),
-            0.5 - c.y / (2.0 * half_h * c.z),
-            p.z,
-        )
-    });
-    let world = local.map(|p| Vec3::new(p.x, -p.y, p.z));
-    Hand {
-        handedness: pose.handedness,
-        score: 1.0,
-        image,
-        world,
+/// The webcam the synthetic hands are seen through. Poses are given in the
+/// user's level frame; the camera may be pitched up or down in it.
+#[derive(Clone, Copy)]
+pub struct TestCamera {
+    pub hfov_deg: f32,
+    /// Positive looks up.
+    pub pitch_deg: f32,
+}
+
+impl Default for TestCamera {
+    /// The camera the app assumes when uncalibrated: level, default FOV.
+    fn default() -> Self {
+        Self {
+            hfov_deg: CameraModel::default().hfov_deg,
+            pitch_deg: 0.0,
+        }
     }
 }
 
-pub fn frame(poses: &[Pose]) -> HandFrame {
-    HandFrame {
-        t_ms: 0,
-        hands: poses.iter().copied().map(hand).collect(),
+impl TestCamera {
+    /// Builds the MediaPipe-shaped `Hand` a tracker would report for `pose`:
+    /// world landmarks in meters (y down) along the camera's axes, image
+    /// landmarks normalized (y down).
+    pub fn hand(&self, pose: Pose) -> Hand {
+        let mut local = OPEN_HAND.map(Vec3::from_array);
+        if let Some(gap) = pose.pinch_gap {
+            local[4] = local[8] + Vec3::new(-gap, 0.0, 0.0);
+        }
+        let palm =
+            landmark::PALM.map(|i| local[i]).iter().sum::<Vec3>() / landmark::PALM.len() as f32;
+        // From the user's level frame into the camera's axes.
+        let to_camera = Quat::from_rotation_x(self.pitch_deg.to_radians());
+        let at = to_camera * pose.at;
+        let local = local.map(|p| to_camera * (pose.rotation * (p - palm)));
+        // Project with our own pinhole math, so the app's unprojection is
+        // checked rather than reused.
+        let half_w = (self.hfov_deg.to_radians() / 2.0).tan();
+        let half_h = half_w / CameraModel::default().aspect;
+        let image = local.map(|p| {
+            let c = at + p;
+            Vec3::new(
+                0.5 + c.x / (2.0 * half_w * c.z),
+                0.5 - c.y / (2.0 * half_h * c.z),
+                p.z,
+            )
+        });
+        let world = local.map(|p| Vec3::new(p.x, -p.y, p.z));
+        Hand {
+            handedness: pose.handedness,
+            score: 1.0,
+            image,
+            world,
+        }
     }
+
+    /// One frame of `poses`, as this camera sees them.
+    pub fn frame(&self, poses: &[Pose]) -> HandFrame {
+        HandFrame {
+            t_ms: 0,
+            hands: poses.iter().map(|&p| self.hand(p)).collect(),
+        }
+    }
+
+    /// `n` identical frames of `poses`: the hand held still.
+    pub fn hold(&self, poses: &[Pose], n: usize) -> Vec<HandFrame> {
+        vec![self.frame(poses); n]
+    }
+}
+
+/// `pose` seen by the default camera.
+pub fn hand(pose: Pose) -> Hand {
+    TestCamera::default().hand(pose)
+}
+
+/// One frame of `poses`, seen by the default camera.
+pub fn frame(poses: &[Pose]) -> HandFrame {
+    TestCamera::default().frame(poses)
 }
 
 /// `n` identical frames of `poses`: the hand held still.
 pub fn hold(poses: &[Pose], n: usize) -> Vec<HandFrame> {
-    vec![frame(poses); n]
+    TestCamera::default().hold(poses, n)
 }
 
 /// A frame where the tracker sees no hands.
@@ -192,6 +233,19 @@ impl Harness {
     /// Plays every frame given to `new` or `timed`.
     pub fn run_all(&mut self) -> &mut Self {
         self.run(self.frame_count)
+    }
+
+    /// Presses and releases `key` over one update.
+    pub fn press(&mut self, key: KeyCode) -> &mut Self {
+        self.app
+            .world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+        self.run(1);
+        let mut keys = self.app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(key);
+        keys.clear();
+        self
     }
 
     pub fn run(&mut self, updates: usize) -> &mut Self {

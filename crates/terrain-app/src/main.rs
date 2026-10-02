@@ -3,9 +3,16 @@
 //! Hands come from the webcam (`--camera <device>`, default `/dev/video0`),
 //! or from a recorded fixture with `--replay <fixture.json>` (looped; the
 //! webcam then only feeds the preview).
+//!
+//! `C` calibrates the camera; the result is kept in
+//! `~/.config/terrain/calibration.json` and loaded at start.
+
+use std::path::PathBuf;
 
 use bevy::prelude::*;
-use terrain_app::{DEFAULT_CAMERA, GrabPlugin, Grabbable, PreviewPlugin, start_tracking};
+use terrain_app::{
+    DEFAULT_CAMERA, GrabPlugin, Grabbable, PreviewPlugin, load_camera, start_tracking,
+};
 use terrain_hands::{HandSource, ReplaySource};
 
 fn main() -> AppExit {
@@ -19,7 +26,8 @@ fn main() -> AppExit {
     };
     let device = option("--camera").unwrap_or_else(|| DEFAULT_CAMERA.to_string());
     let tracking = start_tracking(&device);
-    let source: Box<dyn HandSource> = match (option("--replay"), &tracking) {
+    let replay = option("--replay");
+    let source: Box<dyn HandSource> = match (replay.clone(), &tracking) {
         (Some(fixture), _) => Box::new(
             ReplaySource::from_json_file(&fixture)
                 .unwrap_or_else(|e| panic!("can't load replay fixture {fixture}: {e}"))
@@ -30,6 +38,18 @@ fn main() -> AppExit {
         (None, Err(_)) => Box::new(ReplaySource::new(Vec::new())),
     };
 
+    let mut grab = GrabPlugin::new(source);
+    // A replay was recorded through its own camera: the saved calibration
+    // doesn't apply to it, and calibrating on it mustn't overwrite that.
+    if replay.is_none()
+        && let Some(path) = calibration_file()
+    {
+        if let Some(camera) = load_camera(&path) {
+            grab = grab.with_camera(camera);
+        }
+        grab = grab.saving_calibration_to(path);
+    }
+
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -38,7 +58,7 @@ fn main() -> AppExit {
             }),
             ..default()
         }))
-        .add_plugins(GrabPlugin::new(source))
+        .add_plugins(grab)
         .add_plugins(PreviewPlugin::new(tracking))
         .add_systems(Startup, spawn_scene)
         .run()
@@ -66,4 +86,14 @@ fn spawn_scene(
         Transform::default(),
         Grabbable,
     ));
+}
+
+/// Where calibration is kept: `$XDG_CONFIG_HOME/terrain`, or `~/.config/terrain`.
+fn calibration_file() -> Option<PathBuf> {
+    // An empty or relative XDG_CONFIG_HOME is ignored, as the spec says.
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| Some(PathBuf::from(std::env::var_os("HOME")?).join(".config")))?;
+    Some(config.join("terrain").join("calibration.json"))
 }

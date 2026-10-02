@@ -1,12 +1,17 @@
 //! The terrain scene: hands from a `HandSource` pick up and move `Grabbable` entities.
 
+mod calibration;
 mod preview;
 
-use std::sync::Mutex;
+use std::{path::PathBuf, sync::Mutex};
 
 use bevy::prelude::*;
-use terrain_hands::{FORGET_AFTER_MS, HandSource, HandState, HandStateEstimator, TrackedHands};
+use terrain_hands::{
+    CameraModel, FORGET_AFTER_MS, HandFrame, HandSource, HandState, HandStateEstimator,
+    TrackedHands,
+};
 
+pub use calibration::{CALIBRATION_DISTANCE_M, Calibration, load_camera};
 pub use preview::{DEFAULT_CAMERA, PreviewPlugin, start_tracking};
 
 /// Hand motion is amplified by this much when applied to a grabbed entity,
@@ -20,16 +25,37 @@ pub const DEMO_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/de
 #[derive(Component)]
 pub struct Grabbable;
 
+/// Where a `Grabbable` started, for `R` to put it back.
+#[derive(Component)]
+struct Start(Transform);
+
 /// Reads hands from a `HandSource` and lets a pinch grab, move and release
 /// `Grabbable` entities.
 pub struct GrabPlugin {
     source: Mutex<Option<Box<dyn HandSource>>>,
+    camera: CameraModel,
+    save_calibration_to: Option<PathBuf>,
 }
 
 impl GrabPlugin {
     pub fn new(source: impl HandSource + 'static) -> Self {
         Self {
             source: Mutex::new(Some(Box::new(source))),
+            camera: CameraModel::default(),
+            save_calibration_to: None,
+        }
+    }
+
+    /// Starts with `camera` (say, a saved calibration) instead of the default.
+    pub fn with_camera(self, camera: CameraModel) -> Self {
+        Self { camera, ..self }
+    }
+
+    /// Saves each successful calibration to `path`.
+    pub fn saving_calibration_to(self, path: PathBuf) -> Self {
+        Self {
+            save_calibration_to: Some(path),
+            ..self
         }
     }
 }
@@ -44,18 +70,37 @@ impl Plugin for GrabPlugin {
             .expect("GrabPlugin added twice");
         app.insert_resource(Hands {
             source: Mutex::new(source),
-            estimator: HandStateEstimator::default(),
+            estimator: HandStateEstimator::new(self.camera),
+            raw: None,
             fresh: None,
         })
+        .insert_resource(Calibration::new(
+            self.camera,
+            self.save_calibration_to.clone(),
+        ))
+        // Present under DefaultPlugins; headless apps press keys by hand.
+        .init_resource::<ButtonInput<KeyCode>>()
         .init_resource::<Grab>()
-        .add_systems(Update, (read_hands, drive_grab).chain());
+        .add_systems(
+            Update,
+            (
+                read_hands,
+                calibration::calibrate,
+                remember_start,
+                reset,
+                drive_grab,
+            )
+                .chain(),
+        );
     }
 }
 
 #[derive(Resource)]
-struct Hands {
+pub(crate) struct Hands {
     source: Mutex<Box<dyn HandSource>>,
     estimator: HandStateEstimator,
+    /// The frame that arrived this update, as the tracker saw it.
+    raw: Option<HandFrame>,
     /// Hands from a frame that arrived this update, not yet acted on.
     fresh: Option<TrackedHands>,
 }
@@ -76,10 +121,34 @@ struct Held {
     last_seen_ms: u64,
 }
 
+fn remember_start(mut commands: Commands, new: Query<(Entity, &Transform), Added<Grabbable>>) {
+    for (entity, transform) in &new {
+        commands.entity(entity).insert(Start(*transform));
+    }
+}
+
+/// `R`, or a fresh calibration, puts every `Grabbable` back where it
+/// started and lets go of it.
+fn reset(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut calibration: ResMut<Calibration>,
+    mut grab: ResMut<Grab>,
+    mut grabbables: Query<(&mut Transform, &Start)>,
+) {
+    let calibrated = std::mem::take(&mut calibration.reset_scene);
+    if keys.just_pressed(KeyCode::KeyR) || calibrated {
+        grab.held = None;
+        for (mut transform, start) in &mut grabbables {
+            *transform = start.0;
+        }
+    }
+}
+
 fn read_hands(time: Res<Time>, mut hands: ResMut<Hands>) {
     let hands = &mut *hands;
-    if let Some(frame) = hands.source.get_mut().unwrap().next_frame(time.elapsed()) {
-        hands.fresh = Some(hands.estimator.update(&frame));
+    hands.raw = hands.source.get_mut().unwrap().next_frame(time.elapsed());
+    if let Some(frame) = &hands.raw {
+        hands.fresh = Some(hands.estimator.update(frame));
     }
 }
 
@@ -121,11 +190,7 @@ fn drive_grab(
         }
         return;
     };
-    match frame
-        .hands
-        .iter()
-        .find(|h| h.handedness == held.hand.handedness)
-    {
+    match frame.hands.iter().find(|h| h.id == held.hand.id) {
         Some(hand) if hand.pinching => {
             held.last_seen_ms = frame.t_ms;
             if let Ok((_, mut transform)) = grabbables.get_mut(held.entity) {

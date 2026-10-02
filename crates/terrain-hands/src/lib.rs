@@ -22,4 +22,6 @@ pub use live::{LiveHands, LiveTracker, TrackedFrame};
 pub use palm::{PALM_MODEL, PalmDetector};
 pub use region::HandRegion;
 pub use source::{HandSource, ReplaySource};
-pub use state::{CameraModel, FORGET_AFTER_MS, HandState, HandStateEstimator, TrackedHands};
+pub use state::{
+    CalibrationError, CameraModel, FORGET_AFTER_MS, HandState, HandStateEstimator, TrackedHands,
+};

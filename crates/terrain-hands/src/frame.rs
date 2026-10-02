@@ -1,4 +1,4 @@
-use glam::{Mat3, Quat, Vec3};
+use glam::{Mat3, Quat, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
 /// MediaPipe hand landmark indices used by terrain.
@@ -61,6 +61,15 @@ impl Hand {
     pub fn world_in_camera(&self, i: usize) -> Vec3 {
         let w = self.world[i];
         Vec3::new(w.x, -w.y, w.z)
+    }
+
+    /// Palm center in the image: the mean of the palm landmarks, normalized.
+    pub fn palm_in_image(&self) -> Vec2 {
+        landmark::PALM
+            .iter()
+            .map(|&i| self.image[i].truncate())
+            .sum::<Vec2>()
+            / landmark::PALM.len() as f32
     }
 
     /// Palm center relative to the world-landmark origin, in camera axes.

@@ -78,3 +78,26 @@ fn demo_fixture_drags_the_cube_around_a_circle_and_back() {
     h.run(60 + 15 + 30);
     assert_near(h.cube().translation, Vec3::ZERO);
 }
+
+#[test]
+fn r_puts_the_cube_back_and_lets_go_of_it() {
+    let reach = Vec3::new(0.10, 0.0, 0.0);
+    let turned = Quat::from_rotation_z(0.8);
+    let mut h = Harness::new(
+        [
+            hold(&[Pose::pinched(START)], SETTLE),
+            hold(&[Pose::pinched(START + reach).rotated(turned)], SETTLE),
+            // Still pinching after R: the grab was dropped, so this is ignored.
+            hold(&[Pose::pinched(START + 2.0 * reach)], SETTLE),
+        ]
+        .concat(),
+    );
+    h.run(2 * SETTLE);
+    assert!(
+        h.cube().translation.x > 0.1,
+        "the grab should have moved the cube first"
+    );
+    h.press(KeyCode::KeyR).run_all();
+    assert_near(h.cube().translation, Vec3::ZERO);
+    assert_turned(h.cube().rotation, Quat::IDENTITY);
+}

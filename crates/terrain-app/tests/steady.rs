@@ -315,3 +315,39 @@ fn a_quick_deliberate_move_in_depth_is_followed_promptly() {
         lag * 1e3
     );
 }
+
+#[test]
+fn two_hands_read_as_the_same_hand_are_still_told_apart() {
+    // The tracker often labels a second hand the same as the first.
+    let open_at = START + Vec3::new(0.20, 0.0, 0.0);
+    let mut h = Harness::new(
+        [
+            hold(&[Pose::open(open_at), Pose::open(START)], SETTLE),
+            hold(&[Pose::open(open_at), Pose::pinched(START)], SETTLE),
+            hold(&[Pose::open(open_at), Pose::pinched(START + REACH)], SETTLE),
+            hold(&[Pose::open(open_at), Pose::open(START + REACH)], SETTLE),
+        ]
+        .concat(),
+    );
+    h.run_all();
+    assert_near(h.cube().translation, Vec3::new(0.15, 0.0, 0.0));
+}
+
+#[test]
+fn a_hand_appearing_across_the_view_does_not_inherit_the_grab() {
+    let left_side = START + Vec3::new(-0.15, 0.0, 0.0);
+    let right_side = START + Vec3::new(0.15, 0.0, 0.0);
+    let mut h = Harness::new(
+        [
+            hold(&[Pose::pinched(left_side)], SETTLE),
+            // The holding hand leaves; another, already pinching, shows up
+            // across the view a frame later and moves.
+            vec![no_hands()],
+            hold(&[Pose::pinched(right_side)], 2),
+            hold(&[Pose::pinched(right_side + REACH)], SETTLE),
+        ]
+        .concat(),
+    );
+    h.run_all();
+    assert_near(h.cube().translation, Vec3::ZERO);
+}
