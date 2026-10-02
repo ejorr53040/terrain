@@ -1,0 +1,16 @@
+{
+  "palm_detection_full": {
+    "source": "https://storage.googleapis.com/mediapipe-assets/modules/palm_detection/palm_detection_full.tflite?generation=1782183635662937",
+    "license": "Apache-2.0 (Google MediaPipe)",
+    "tflite_sha256": "2f25e740121983f68ffc05f99991d524dc0ea812134f6316a26125816941ee85",
+    "onnx_sha256": "0a0fc6097c9d432be8d8f3a5c4002b26d71dc688dd24099557dd1e0e579f7eea",
+    "converted_with": "tf2onnx 1.16, opset 17"
+  },
+  "hand_landmark_full": {
+    "source": "https://storage.googleapis.com/mediapipe-assets/modules/hand_landmark/hand_landmark_full.tflite?generation=1782183530499255",
+    "license": "Apache-2.0 (Google MediaPipe)",
+    "tflite_sha256": "8c026882c9ec059ce0f8e75266bee5a9a23c341a40e0000df755374d3d1b9b68",
+    "onnx_sha256": "0d0e70ffcb2ee32fc5f842873006ffeeeb49b4a87df8b83320d94200c5bd806c",
+    "converted_with": "tf2onnx 1.16, opset 17"
+  }
+}

@@ -4,11 +4,12 @@
 
 use std::{
     fmt, io,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Condvar, Mutex, Weak},
     thread,
     time::{Duration, Instant},
 };
 
+use crate::RgbaImage;
 use v4l::{
     Device, FourCC, Fraction, Timestamp,
     buffer::Type,
@@ -68,6 +69,17 @@ impl fmt::Display for CameraError {
     }
 }
 
+impl CameraFrame {
+    /// The frame's pixels, borrowed.
+    pub fn image(&self) -> RgbaImage<'_> {
+        RgbaImage {
+            width: self.width,
+            height: self.height,
+            pixels: &self.rgba,
+        }
+    }
+}
+
 impl std::error::Error for CameraError {}
 
 /// What the capture thread hands over.
@@ -78,9 +90,16 @@ struct Shared {
     failed: Option<String>,
 }
 
+/// The hand-over slot, and a signal for whoever waits on it.
+#[derive(Default)]
+struct Slot {
+    shared: Mutex<Shared>,
+    changed: Condvar,
+}
+
 /// A webcam streaming on a background thread. Dropping it stops capture.
 pub struct Camera {
-    shared: Arc<Mutex<Shared>>,
+    slot: Arc<Slot>,
 }
 
 impl Camera {
@@ -108,35 +127,50 @@ impl Camera {
         let mut stream = MmapStream::with_buffers(&dev, Type::VideoCapture, 4).map_err(open_err)?;
         stream.set_timeout(STALL_TIMEOUT);
 
-        let shared = Arc::new(Mutex::new(Shared::default()));
-        let weak = Arc::downgrade(&shared);
+        let slot = Arc::new(Slot::default());
+        let weak = Arc::downgrade(&slot);
         thread::Builder::new()
             .name("camera".into())
             .spawn(move || {
                 if let Err(e) = stream_frames(stream, &weak)
-                    && let Some(shared) = weak.upgrade()
+                    && let Some(slot) = weak.upgrade()
                 {
-                    shared.lock().unwrap().failed = Some(e);
+                    slot.shared.lock().unwrap().failed = Some(e);
+                    slot.changed.notify_all();
                 }
             })
             .map_err(open_err)?;
-        Ok(Self { shared })
+        Ok(Self { slot })
     }
 
     /// The newest frame since the last call, if any. Never blocks.
     pub fn latest(&self) -> Option<CameraFrame> {
-        self.shared.lock().unwrap().latest.take()
+        self.slot.shared.lock().unwrap().latest.take()
+    }
+
+    /// The next new frame, waiting up to `timeout` for one. `None` on
+    /// timeout or once capture has stopped.
+    pub fn wait_next(&self, timeout: Duration) -> Option<CameraFrame> {
+        let shared = self.slot.shared.lock().unwrap();
+        let (mut shared, _) = self
+            .slot
+            .changed
+            .wait_timeout_while(shared, timeout, |s| {
+                s.latest.is_none() && s.failed.is_none()
+            })
+            .unwrap();
+        shared.latest.take()
     }
 
     /// Why capture stopped, if it has.
     pub fn failure(&self) -> Option<String> {
-        self.shared.lock().unwrap().failed.clone()
+        self.slot.shared.lock().unwrap().failed.clone()
     }
 }
 
 /// Streams until the `Camera` is dropped (`Ok`) or the device fails or
 /// stalls (`Err`).
-fn stream_frames(mut stream: MmapStream, shared: &Weak<Mutex<Shared>>) -> Result<(), String> {
+fn stream_frames(mut stream: MmapStream, slot: &Weak<Slot>) -> Result<(), String> {
     let options = DecoderOptions::default().jpeg_set_out_colorspace(ColorSpace::RGBA);
     loop {
         let (jpeg, meta) = stream.next().map_err(|e| match e.kind() {
@@ -159,10 +193,11 @@ fn stream_frames(mut stream: MmapStream, shared: &Weak<Mutex<Shared>>) -> Result
             height: info.height.into(),
             rgba,
         };
-        let Some(shared) = shared.upgrade() else {
+        let Some(slot) = slot.upgrade() else {
             return Ok(());
         };
-        shared.lock().unwrap().latest = Some(frame);
+        slot.shared.lock().unwrap().latest = Some(frame);
+        slot.changed.notify_all();
     }
 }
 

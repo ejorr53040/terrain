@@ -1,5 +1,6 @@
 //! The mirrored webcam preview in a corner of the window, toggled with `P`,
-//! and a debug overlay with the capture frame rate.
+//! with detected hand regions drawn on it, and a debug overlay with the
+//! capture frame rate and detection stats.
 
 use std::time::{Duration, Instant};
 
@@ -8,7 +9,10 @@ use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use terrain_hands::capture::{self, Camera, CameraFrame};
+use terrain_hands::{
+    HandRegion, HandTracker, PALM_MODEL, PalmDetector,
+    capture::{self, Camera, CameraFrame},
+};
 
 /// The webcam the preview opens by default.
 pub const DEFAULT_CAMERA: &str = "/dev/video0";
@@ -16,24 +20,31 @@ pub const DEFAULT_CAMERA: &str = "/dev/video0";
 /// Preview width as a fraction of the window's.
 const PREVIEW_WIDTH: f32 = 0.25;
 
+/// Hand regions are drawn in this color (RGBA)...
+const REGION_COLOR: [u8; 4] = [80, 230, 120, 255];
+/// ...with lines this thick, in camera pixels.
+const REGION_LINE: i32 = 3;
+
 /// How often the capture frame rate is re-measured.
 const RATE_WINDOW: Duration = Duration::from_secs(1);
 
-/// Captures from a webcam and shows it, mirrored, in the window's corner.
-/// A camera that can't be opened is reported in the overlay; the rest of
-/// the app runs on.
+/// Captures from a webcam, tracks hands in it, and shows it, mirrored, in
+/// the window's corner. A camera or model that can't be opened is reported
+/// in the overlay; the rest of the app runs on.
 pub struct PreviewPlugin {
     pub device: String,
 }
 
 impl Plugin for PreviewPlugin {
     fn build(&self, app: &mut App) {
-        let camera = Camera::open(&self.device).map_err(|e| e.to_string());
-        if let Err(e) = &camera {
+        let tracker = start_tracker(&self.device);
+        if let Err(e) = &tracker {
             error!("{e}");
         }
-        app.insert_resource(PreviewCamera {
-            camera: camera.ok(),
+        app.insert_resource(LiveTracking {
+            tracker: tracker.ok(),
+            hands: 0,
+            detect_time: Duration::ZERO,
             rate: FrameRate::default(),
             wanted: true,
             has_frame: false,
@@ -46,9 +57,20 @@ impl Plugin for PreviewPlugin {
     }
 }
 
+fn start_tracker(device: &str) -> Result<HandTracker, String> {
+    let camera = Camera::open(device).map_err(|e| e.to_string())?;
+    let detector = PalmDetector::new(PALM_MODEL)
+        .map_err(|e| format!("can't load palm model {PALM_MODEL}: {e}"))?;
+    HandTracker::spawn(camera, detector).map_err(|e| format!("can't start hand tracking: {e}"))
+}
+
 #[derive(Resource)]
-struct PreviewCamera {
-    camera: Option<Camera>,
+struct LiveTracking {
+    tracker: Option<HandTracker>,
+    /// Hands found in the latest frame.
+    hands: usize,
+    /// How long detection took on the latest frame.
+    detect_time: Duration,
     rate: FrameRate,
     /// The user wants the preview shown (`P` toggles this).
     wanted: bool,
@@ -56,17 +78,21 @@ struct PreviewCamera {
     has_frame: bool,
 }
 
-impl PreviewCamera {
+impl LiveTracking {
     /// The overlay's camera line.
     fn status(&self) -> String {
-        let Some(camera) = &self.camera else {
-            return "camera: unavailable (see log)".into();
+        let Some(tracker) = &self.tracker else {
+            return "tracking: unavailable (see log)".into();
         };
-        if let Some(failure) = camera.failure() {
-            return format!("camera: {failure}");
+        if let Some(failure) = tracker.failure() {
+            return format!("tracking: {failure}");
         }
         match self.rate.fps() {
-            Some(fps) => format!("capture: {fps:.1} fps"),
+            Some(fps) => format!(
+                "capture: {fps:.1} fps\nhands: {} (detect {:.0} ms)",
+                self.hands,
+                self.detect_time.as_secs_f32() * 1e3
+            ),
             None => "capture: waiting for camera…".into(),
         }
     }
@@ -152,15 +178,21 @@ fn spawn_preview(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 }
 
 fn show_latest_frame(
-    mut preview_camera: ResMut<PreviewCamera>,
+    mut tracking: ResMut<LiveTracking>,
     mut images: ResMut<Assets<Image>>,
     preview: Query<&ImageNode, With<Preview>>,
 ) {
-    let preview_camera = &mut *preview_camera;
-    let Some(frame) = preview_camera.camera.as_ref().and_then(Camera::latest) else {
+    let tracking = &mut *tracking;
+    let Some(tracked) = tracking.tracker.as_ref().and_then(HandTracker::latest) else {
         return;
     };
-    preview_camera.rate.record(&frame);
+    let mut frame = tracked.frame;
+    tracking.rate.record(&frame);
+    tracking.hands = tracked.regions.len();
+    tracking.detect_time = tracked.detect_time;
+    for region in &tracked.regions {
+        draw_region(&mut frame, region);
+    }
     let Ok(node) = preview.single() else {
         return;
     };
@@ -178,36 +210,54 @@ fn show_latest_frame(
         return;
     }
     image.data = Some(frame.rgba);
-    preview_camera.has_frame = true;
+    tracking.has_frame = true;
 }
 
-fn toggle_preview(keys: Res<ButtonInput<KeyCode>>, mut preview_camera: ResMut<PreviewCamera>) {
+fn toggle_preview(keys: Res<ButtonInput<KeyCode>>, mut tracking: ResMut<LiveTracking>) {
     if keys.just_pressed(KeyCode::KeyP) {
-        preview_camera.wanted = !preview_camera.wanted;
+        tracking.wanted = !tracking.wanted;
     }
 }
 
 /// Shown when wanted, once there's a picture to show.
-fn show_preview(
-    preview_camera: Res<PreviewCamera>,
-    mut preview: Query<&mut Visibility, With<Preview>>,
-) {
+fn show_preview(tracking: Res<LiveTracking>, mut preview: Query<&mut Visibility, With<Preview>>) {
     let Ok(mut visibility) = preview.single_mut() else {
         return;
     };
-    visibility.set_if_neq(if preview_camera.wanted && preview_camera.has_frame {
+    visibility.set_if_neq(if tracking.wanted && tracking.has_frame {
         Visibility::Inherited
     } else {
         Visibility::Hidden
     });
 }
 
-fn show_stats(preview_camera: Res<PreviewCamera>, mut text: Query<&mut Text, With<StatsText>>) {
+fn show_stats(tracking: Res<LiveTracking>, mut text: Query<&mut Text, With<StatsText>>) {
     let Ok(mut text) = text.single_mut() else {
         return;
     };
-    let status = preview_camera.status();
+    let status = tracking.status();
     if text.0 != status {
         text.0 = status;
+    }
+}
+
+/// Outlines `region` on `frame`'s pixels.
+fn draw_region(frame: &mut CameraFrame, region: &HandRegion) {
+    let (width, height) = (frame.width as i32, frame.height as i32);
+    let corners = region.corners();
+    for (i, &from) in corners.iter().enumerate() {
+        let to = corners[(i + 1) % corners.len()];
+        let steps = from.distance(to).ceil().max(1.0) as i32;
+        for step in 0..=steps {
+            let p = from.lerp(to, step as f32 / steps as f32).as_ivec2();
+            for y in p.y - REGION_LINE / 2..=p.y + REGION_LINE / 2 {
+                for x in p.x - REGION_LINE / 2..=p.x + REGION_LINE / 2 {
+                    if (0..width).contains(&x) && (0..height).contains(&y) {
+                        let at = ((y * width + x) * 4) as usize;
+                        frame.rgba[at..at + 4].copy_from_slice(&REGION_COLOR);
+                    }
+                }
+            }
+        }
     }
 }
