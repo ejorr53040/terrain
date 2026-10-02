@@ -1,9 +1,13 @@
 //! The terrain scene: hands from a `HandSource` pick up and move `Grabbable` entities.
 
+mod preview;
+
 use std::sync::Mutex;
 
 use bevy::prelude::*;
 use terrain_hands::{FORGET_AFTER_MS, HandSource, HandState, HandStateEstimator, TrackedHands};
+
+pub use preview::{DEFAULT_CAMERA, PreviewPlugin};
 
 /// Hand motion is amplified by this much when applied to a grabbed entity,
 /// so small, comfortable movements cover the scene.

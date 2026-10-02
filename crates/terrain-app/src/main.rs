@@ -1,21 +1,25 @@
 //! terrain: a cube you move with your hands.
 //!
-//! Until live tracking lands, hands come from a replay fixture:
-//! `terrain-app [--replay <fixture.json>]` (defaults to the bundled demo, looped).
+//! Until live tracking lands, hands come from a replay fixture while the
+//! webcam only feeds the preview:
+//! `terrain-app [--replay <fixture.json>] [--camera <device>]`
+//! (defaults: the bundled demo, looped; `/dev/video0`).
 
 use bevy::prelude::*;
-use terrain_app::{DEMO_FIXTURE, GrabPlugin, Grabbable};
+use terrain_app::{DEFAULT_CAMERA, DEMO_FIXTURE, GrabPlugin, Grabbable, PreviewPlugin};
 use terrain_hands::ReplaySource;
 
 fn main() -> AppExit {
     let args: Vec<String> = std::env::args().collect();
-    let fixture = match args.iter().position(|a| a == "--replay") {
+    let option = |name: &str, default: &str| match args.iter().position(|a| a == name) {
         Some(i) => args
             .get(i + 1)
-            .expect("--replay needs a fixture path")
+            .unwrap_or_else(|| panic!("{name} needs a value"))
             .clone(),
-        None => DEMO_FIXTURE.to_string(),
+        None => default.to_string(),
     };
+    let fixture = option("--replay", DEMO_FIXTURE);
+    let device = option("--camera", DEFAULT_CAMERA);
     let source = ReplaySource::from_json_file(&fixture)
         .unwrap_or_else(|e| panic!("can't load replay fixture {fixture}: {e}"))
         .looping();
@@ -29,6 +33,7 @@ fn main() -> AppExit {
             ..default()
         }))
         .add_plugins(GrabPlugin::new(source))
+        .add_plugins(PreviewPlugin { device })
         .add_systems(Startup, spawn_scene)
         .run()
 }

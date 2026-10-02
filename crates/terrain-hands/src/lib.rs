@@ -1,6 +1,7 @@
 //! Hand tracking for terrain: where hands come from (`HandSource`) and what
 //! they are doing (`HandState`). No Bevy dependency.
 
+pub mod capture;
 mod frame;
 mod smoothing;
 mod source;
