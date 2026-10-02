@@ -4,9 +4,9 @@ use bevy::prelude::*;
 use support::*;
 use terrain_app::{CUBE_STARTS, GRAB_GAIN};
 
-/// The app's two cubes, left and right of the middle.
-const LEFT_CUBE: Vec3 = CUBE_STARTS[0];
-const RIGHT_CUBE: Vec3 = CUBE_STARTS[1];
+/// A scene of two cubes, left and right of the middle.
+const LEFT_CUBE: Vec3 = Vec3::new(-0.25, 0.0, 0.0);
+const RIGHT_CUBE: Vec3 = Vec3::new(0.25, 0.0, 0.0);
 /// Hands held out in front of the camera, one on each side of the view.
 const LEFT_HAND: Vec3 = Vec3::new(-0.12, 0.0, 0.5);
 const RIGHT_HAND: Vec3 = Vec3::new(0.12, 0.0, 0.5);
@@ -121,4 +121,29 @@ fn r_puts_both_cubes_back_and_lets_go_of_both() {
     h.press(KeyCode::KeyR).run_all();
     assert_near(h.cube_at(0), LEFT_CUBE);
     assert_near(h.cube_at(1), RIGHT_CUBE);
+}
+
+#[test]
+fn across_the_apps_row_of_five_each_cube_is_grabbed_by_the_hand_in_front_of_it() {
+    assert_eq!(CUBE_STARTS.len(), 5, "the app has five cubes");
+    // Hand places across the view that line up, on screen, with the five
+    // cubes in their row.
+    let hands_x = [-0.14, -0.07, 0.0, 0.07, 0.14];
+    for (i, x) in hands_x.into_iter().enumerate() {
+        let hand = Vec3::new(x, 0.0, 0.5);
+        let mut h = Harness::with_cubes(
+            [
+                hold(&[Pose::open(hand)], SETTLE),
+                hold(&[Pose::pinched(hand)], SETTLE),
+                hold(&[Pose::pinched(hand + UP)], SETTLE),
+            ]
+            .concat(),
+            &CUBE_STARTS,
+        );
+        h.run_all();
+        for (j, start) in CUBE_STARTS.into_iter().enumerate() {
+            let expected = if j == i { start + GAIN_UP } else { start };
+            assert_near(h.cube_at(j), expected);
+        }
+    }
 }

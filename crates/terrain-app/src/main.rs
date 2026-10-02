@@ -1,4 +1,4 @@
-//! terrain: two cubes you move with your hands, one in each.
+//! terrain: a row of cubes you move with your hands, one in each.
 //!
 //! Hands come from the webcam (`--camera <device>`, default `/dev/video0`),
 //! or from a recorded fixture with `--replay <fixture.json>` (looped; the
@@ -82,11 +82,16 @@ fn spawn_scene(
         Transform::from_xyz(1.0, 2.0, 1.5).looking_at(Vec3::ZERO, Vec3::Y),
     ));
     let cube = meshes.add(Cuboid::from_length(0.15));
-    // One cube per hand: blue on the left, orange on the right.
-    for (at, color) in CUBE_STARTS
-        .into_iter()
-        .zip([Color::srgb(0.35, 0.65, 0.95), Color::srgb(0.95, 0.6, 0.3)])
-    {
+    // A row of cubes, each its own colour; one colour per start, or this
+    // doesn't compile.
+    let colors: [Color; CUBE_STARTS.len()] = [
+        Color::srgb(0.35, 0.65, 0.95),
+        Color::srgb(0.95, 0.6, 0.3),
+        Color::srgb(0.45, 0.85, 0.5),
+        Color::srgb(0.75, 0.5, 0.95),
+        Color::srgb(0.95, 0.85, 0.35),
+    ];
+    for (at, color) in CUBE_STARTS.into_iter().zip(colors) {
         commands.spawn((
             Mesh3d(cube.clone()),
             MeshMaterial3d(materials.add(color)),

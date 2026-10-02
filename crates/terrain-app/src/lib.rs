@@ -21,8 +21,14 @@ pub const GRAB_GAIN: f32 = 1.5;
 /// Where the scene camera sits; it looks at the origin.
 pub const SCENE_CAMERA_AT: Vec3 = Vec3::new(0.0, 0.25, 1.2);
 
-/// Where the cubes start: one per hand, either side of the middle.
-pub const CUBE_STARTS: [Vec3; 2] = [Vec3::new(-0.25, 0.0, 0.0), Vec3::new(0.25, 0.0, 0.0)];
+/// Where the cubes start: a row across the view, 20 cm apart.
+pub const CUBE_STARTS: [Vec3; 5] = [
+    Vec3::new(-0.4, 0.0, 0.0),
+    Vec3::new(-0.2, 0.0, 0.0),
+    Vec3::new(0.0, 0.0, 0.0),
+    Vec3::new(0.2, 0.0, 0.0),
+    Vec3::new(0.4, 0.0, 0.0),
+];
 
 /// The bundled demo replay: a pinch that drags the cube around a circle.
 pub const DEMO_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/demo-drag.json");
