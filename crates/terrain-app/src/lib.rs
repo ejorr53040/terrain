@@ -64,7 +64,7 @@ struct Grab {
 
 struct GrabStart {
     entity: Entity,
-    hand_position: Vec3,
+    hand: HandState,
     transform: Transform,
 }
 
@@ -75,9 +75,10 @@ fn read_hands(mut hands: ResMut<Hands>) {
     }
 }
 
-/// Relative clutch: while pinched, the entity moves by the hand's motion since
-/// the pinch began, times `GRAB_GAIN`. Camera space (x right, y up, z away from the
-/// camera, i.e. toward the viewer) lines up with the scene's axes.
+/// Relative clutch: while pinched, the entity moves by the hand's motion
+/// since the pinch began, times `GRAB_GAIN`, and turns by the hand's turn
+/// since then. Camera space (x right, y up, z away from the camera, i.e.
+/// toward the viewer) lines up with the scene's axes.
 fn drive_grab(
     hands: Res<Hands>,
     mut grab: ResMut<Grab>,
@@ -92,7 +93,7 @@ fn drive_grab(
             if let Some((entity, transform)) = grabbables.iter().next() {
                 grab.held = Some(GrabStart {
                     entity,
-                    hand_position: hand.position,
+                    hand,
                     transform: *transform,
                 });
             }
@@ -100,7 +101,10 @@ fn drive_grab(
         Some(start) => {
             if let Ok((_, mut transform)) = grabbables.get_mut(start.entity) {
                 transform.translation =
-                    start.transform.translation + GRAB_GAIN * (hand.position - start.hand_position);
+                    start.transform.translation + GRAB_GAIN * (hand.position - start.hand.position);
+                // The hand's turn since the pinch, applied in the scene frame (on the left).
+                transform.rotation =
+                    hand.rotation * start.hand.rotation.inverse() * start.transform.rotation;
             }
         }
     }
