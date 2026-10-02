@@ -9,8 +9,13 @@ use crate::{
 
 /// Pinch closes below this thumb-tip to index-tip distance (meters)...
 const PINCH_CLOSE_M: f32 = 0.03;
-/// ...and opens above this one. The gap between them stops flicker.
-const PINCH_OPEN_M: f32 = 0.05;
+/// ...and opens above this one. The gap between them stops flicker. Measured
+/// on a webcam: a firm pinch reads 1–3 cm, a relaxed hold up to about 5 cm,
+/// an open hand about 9 cm.
+const PINCH_OPEN_M: f32 = 0.065;
+/// A pinch opens only after reading open on this many frames in a row, so a
+/// single blurred frame doesn't drop what the hand is holding.
+const OPEN_FRAMES: u32 = 2;
 
 /// Pinhole model of the webcam.
 #[derive(Clone, Copy, Debug)]
@@ -98,10 +103,19 @@ pub struct TrackedHands {
 /// state are dropped rather than gliding from where it was last seen.
 pub const FORGET_AFTER_MS: u64 = 300;
 
-/// Smoothing for palm position (meters).
+/// Smoothing for palm position across the image (x and y, meters).
 const POSITION_SMOOTHING: OneEuro = OneEuro {
     min_cutoff: 1.0,
     beta: 20.0,
+    d_cutoff: 1.0,
+};
+
+/// Smoothing for palm depth (z, meters). A webcam judges depth several
+/// times less steadily than x and y, so it's smoothed harder, and its noise
+/// is kept from loosening the x and y smoothing.
+const DEPTH_SMOOTHING: OneEuro = OneEuro {
+    min_cutoff: 0.5,
+    beta: 3.0,
     d_cutoff: 1.0,
 };
 
@@ -116,7 +130,12 @@ const ROTATION_SMOOTHING: OneEuro = OneEuro {
 struct Track {
     last_seen_ms: u64,
     pinching: bool,
-    position: Vec3Filter,
+    /// Frames in a row a held pinch has read open.
+    open_frames: u32,
+    /// x and y, with z held at 0...
+    across: Vec3Filter,
+    /// ...and z alone.
+    depth: Vec3Filter,
     rotation: QuatFilter,
 }
 
@@ -125,18 +144,28 @@ impl Track {
         Self {
             last_seen_ms: t_ms,
             pinching: false,
-            position: Vec3Filter::new(POSITION_SMOOTHING),
+            open_frames: 0,
+            across: Vec3Filter::new(POSITION_SMOOTHING),
+            depth: Vec3Filter::new(DEPTH_SMOOTHING),
             rotation: QuatFilter::new(ROTATION_SMOOTHING),
         }
     }
 
-    fn next_pinch(&self, hand: &Hand) -> bool {
+    fn next_pinch(&mut self, hand: &Hand) -> bool {
         let gap = hand.pinch_gap();
-        if self.pinching {
-            gap <= PINCH_OPEN_M
-        } else {
-            gap < PINCH_CLOSE_M
+        if !self.pinching {
+            return gap < PINCH_CLOSE_M;
         }
+        self.open_frames = if gap > PINCH_OPEN_M {
+            self.open_frames + 1
+        } else {
+            0
+        };
+        if self.open_frames < OPEN_FRAMES {
+            return true;
+        }
+        self.open_frames = 0;
+        false
     }
 }
 
@@ -181,11 +210,12 @@ impl HandStateEstimator {
         track.last_seen_ms = t_ms;
         let was_pinching = track.pinching;
         track.pinching = track.next_pinch(hand);
+        let palm = origin + hand.palm_center_offset();
+        let across = track.across.filter(palm.with_z(0.0), dt);
+        let depth = track.depth.filter(Vec3::Z * palm.z, dt);
         Some(HandState {
             handedness: hand.handedness,
-            position: track
-                .position
-                .filter(origin + hand.palm_center_offset(), dt),
+            position: across.with_z(depth.z),
             rotation: track.rotation.filter(rotation, dt),
             pinching: track.pinching,
             pinch_started: track.pinching && !was_pinching,

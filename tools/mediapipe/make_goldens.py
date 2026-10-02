@@ -1,16 +1,26 @@
 # /// script
 # requires-python = "==3.12.*"
-# dependencies = ["mediapipe==0.10.*"]
+# dependencies = ["mediapipe==0.10.14", "numpy<2"]
 # ///
 """Dev-only: golden hand landmarks from Python MediaPipe, for Seam B.
 
     uv run tools/mediapipe/make_goldens.py
 
 Fetches MediaPipe's own test images (Apache-2.0) into
-crates/terrain-hands/tests/fixtures/hands/ and writes goldens.json next to
-them: for each image, the hands MediaPipe's HandLandmarker finds, in its own
-conventions (image landmarks normalized to the unmirrored image, world
-landmarks in meters). Never shipped or run by the app.
+crates/terrain-hands/tests/fixtures/hands/ and writes, next to them, the
+hands MediaPipe finds in each, in its own conventions (image landmarks
+normalized to the unmirrored image, world landmarks in meters):
+
+- goldens.json: the image on its own (palm detection, then landmarks).
+- tracked.json: the image as the second frame of a video whose first frame
+  was the same image (landmarks in regions tracked from the first frame).
+
+Never shipped or run by the app.
+
+Uses MediaPipe's legacy hand pipeline (`solutions.hands`, still in 0.10.14):
+it runs the same full models and the same graph terrain reimplements. The
+newer tasks HandLandmarker differs from it by up to ~2.5% of the image on
+these fixtures, so it can't serve as a tight reference.
 """
 
 import json
@@ -18,12 +28,9 @@ import urllib.request
 from pathlib import Path
 
 import mediapipe as mp
-from mediapipe.tasks.python import BaseOptions
-from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "crates" / "terrain-hands" / "tests" / "fixtures" / "hands"
-CACHE = ROOT / "target" / "mediapipe"
 
 ASSETS = "https://storage.googleapis.com/mediapipe-assets/tasks/testdata/vision"
 # name -> generation, as pinned in mediapipe/third_party/external_files.bzl.
@@ -39,7 +46,6 @@ IMAGES: dict[str, int] = {
     "burger.jpg": 1782184424868164,
     "cats_and_dogs.jpg": 1782184491144775,
 }
-TASK = "hand_landmarker.task", 1782184791153758
 
 
 def fetch(name: str, generation: int, dest: Path) -> Path:
@@ -51,32 +57,47 @@ def fetch(name: str, generation: int, dest: Path) -> Path:
     return path
 
 
+def hands_in(result) -> list[dict]:
+    found = zip(
+        result.multi_handedness or [],
+        result.multi_hand_landmarks or [],
+        result.multi_hand_world_landmarks or [],
+    )
+    return [
+        {
+            "handedness": handedness.classification[0].label,
+            "score": handedness.classification[0].score,
+            "image": [[p.x, p.y, p.z] for p in image_marks.landmark],
+            "world": [[p.x, p.y, p.z] for p in world_marks.landmark],
+        }
+        for handedness, image_marks, world_marks in found
+    ]
+
+
+def hands(still: bool) -> "mp.solutions.hands.Hands":
+    return mp.solutions.hands.Hands(
+        static_image_mode=still,
+        max_num_hands=2,
+        model_complexity=1,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5,
+    )
+
+
 def main() -> None:
     FIXTURES.mkdir(parents=True, exist_ok=True)
-    CACHE.mkdir(parents=True, exist_ok=True)
-    options = HandLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=str(fetch(*TASK, CACHE))),
-        running_mode=RunningMode.IMAGE,
-        num_hands=2,
-    )
-    goldens = {}
-    with HandLandmarker.create_from_options(options) as landmarker:
-        for name, generation in IMAGES.items():
-            image = mp.Image.create_from_file(str(fetch(name, generation, FIXTURES)))
-            result = landmarker.detect(image)
-            goldens[name] = [
-                {
-                    "handedness": handedness[0].category_name,
-                    "score": handedness[0].score,
-                    "image": [[p.x, p.y, p.z] for p in image_marks],
-                    "world": [[p.x, p.y, p.z] for p in world_marks],
-                }
-                for handedness, image_marks, world_marks in zip(
-                    result.handedness, result.hand_landmarks, result.hand_world_landmarks
-                )
-            ]
-            print(f"{name}: {len(goldens[name])} hand(s)")
-    (FIXTURES / "goldens.json").write_text(json.dumps(goldens, indent=1) + "\n")
+    goldens, tracked = {}, {}
+    for name, generation in IMAGES.items():
+        image = mp.Image.create_from_file(str(fetch(name, generation, FIXTURES)))
+        rgb = image.numpy_view()[:, :, :3]
+        with hands(still=True) as still:
+            goldens[name] = hands_in(still.process(rgb))
+        with hands(still=False) as video:
+            video.process(rgb)
+            tracked[name] = hands_in(video.process(rgb))
+        print(f"{name}: {len(goldens[name])} hand(s), {len(tracked[name])} tracked")
+    for file, data in [("goldens.json", goldens), ("tracked.json", tracked)]:
+        (FIXTURES / file).write_text(json.dumps(data, indent=1) + "\n")
 
 
 if __name__ == "__main__":

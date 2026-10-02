@@ -2,50 +2,17 @@
 //! finds a hand region around every hand Python MediaPipe finds, and none
 //! where it finds no hands.
 
-use std::{collections::BTreeMap, path::Path};
+mod support;
 
 use glam::Vec2;
-use serde::Deserialize;
-use terrain_hands::{HandRegion, PALM_MODEL, PalmDetector, RgbaImage};
-use zune_jpeg::{
-    JpegDecoder,
-    zune_core::{bytestream::ZCursor, colorspace::ColorSpace, options::DecoderOptions},
-};
-
-const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hands");
-
-#[derive(Deserialize)]
-struct GoldenHand {
-    /// Normalized to the image: x right, y down.
-    image: Vec<[f32; 3]>,
-}
-
-fn goldens() -> BTreeMap<String, Vec<GoldenHand>> {
-    let text = std::fs::read_to_string(Path::new(FIXTURES).join("goldens.json")).unwrap();
-    serde_json::from_str(&text).unwrap()
-}
-
-/// (width, height, RGBA pixels)
-fn load(name: &str) -> (u32, u32, Vec<u8>) {
-    let bytes = std::fs::read(Path::new(FIXTURES).join(name)).unwrap();
-    let options = DecoderOptions::default().jpeg_set_out_colorspace(ColorSpace::RGBA);
-    let mut decoder = JpegDecoder::new_with_options(ZCursor::new(bytes), options);
-    let rgba = decoder.decode().unwrap();
-    let info = decoder.info().unwrap();
-    (info.width.into(), info.height.into(), rgba)
-}
+use support::{Fixture, goldens};
+use terrain_hands::{HandRegion, PALM_MODEL, PalmDetector};
 
 fn detect(name: &str) -> (u32, u32, Vec<HandRegion>) {
-    let (width, height, rgba) = load(name);
+    let fixture = Fixture::load(name);
     let mut detector = PalmDetector::new(PALM_MODEL).unwrap();
-    let regions = detector
-        .detect(RgbaImage {
-            width,
-            height,
-            pixels: &rgba,
-        })
-        .unwrap();
-    (width, height, regions)
+    let regions = detector.detect(fixture.image()).unwrap();
+    (fixture.width, fixture.height, regions)
 }
 
 #[test]

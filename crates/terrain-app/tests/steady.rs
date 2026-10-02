@@ -254,3 +254,64 @@ fn a_looping_replay_keeps_time_moving_forward() {
     h.run(2 * per_loop + 1);
     assert_near(h.cube().translation, Vec3::new(0.30, 0.0, 0.0));
 }
+
+#[test]
+fn a_held_pinch_survives_one_frame_that_reads_open() {
+    // A blurred frame can read as an open hand mid-drag; the loose pinch
+    // after it (too open to start a grab) must still be holding.
+    let loose = 0.04;
+    let mut h = Harness::new(
+        [
+            hold(&[Pose::pinched(START)], SETTLE),
+            hold(&[Pose::gap(START + REACH, loose)], SETTLE),
+            vec![frame(&[Pose::open(START + REACH)])],
+            hold(&[Pose::gap(START + 2.0 * REACH, loose)], SETTLE),
+        ]
+        .concat(),
+    );
+    h.run_all();
+    assert_near(h.cube().translation, Vec3::new(0.30, 0.0, 0.0));
+}
+
+#[test]
+fn a_still_hand_with_noisy_depth_holds_the_cube_steady() {
+    // A webcam judges distance far less steadily than left-right or up-down:
+    // a still hand's depth reads within about ±2 cm frame to frame.
+    let mut noise = Noise::new();
+    let noisy: Vec<HandFrame> = (0..90)
+        .map(|_| frame(&[Pose::pinched(START + Vec3::Z * 0.02 * noise.next())]))
+        .collect();
+    let mut h = Harness::new([hold(&[Pose::pinched(START)], SETTLE), noisy].concat());
+    h.run(SETTLE + 30);
+    let mut places = vec![];
+    for _ in 0..60 {
+        h.run(1);
+        places.push(h.cube().translation);
+    }
+    let spread = rms_spread(&places);
+    assert!(spread < 0.004, "cube wanders {:.1} mm RMS", spread * 1e3);
+}
+
+#[test]
+fn a_quick_deliberate_move_in_depth_is_followed_promptly() {
+    // 20 cm toward the camera in five frames, then stop.
+    let toward = Vec3::new(0.0, 0.0, -0.20);
+    let sweep: Vec<HandFrame> = (1..=5)
+        .map(|i| frame(&[Pose::pinched(START + toward * i as f32 / 5.0)]))
+        .collect();
+    let mut h = Harness::new(
+        [
+            hold(&[Pose::pinched(START)], SETTLE),
+            sweep,
+            hold(&[Pose::pinched(START + toward)], SETTLE),
+        ]
+        .concat(),
+    );
+    h.run(SETTLE + 5 + 4);
+    let lag = h.cube().translation.z - GRAB_GAIN * toward.z;
+    assert!(
+        lag < 0.015,
+        "cube still {:.1} mm behind 4 frames after the hand stopped",
+        lag * 1e3
+    );
+}

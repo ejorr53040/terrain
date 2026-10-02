@@ -10,6 +10,12 @@ pub trait HandSource: Send {
     fn next_frame(&mut self, now: Duration) -> Option<HandFrame>;
 }
 
+impl<S: HandSource + ?Sized> HandSource for Box<S> {
+    fn next_frame(&mut self, now: Duration) -> Option<HandFrame> {
+        (**self).next_frame(now)
+    }
+}
+
 /// Plays back recorded frames at their recorded `t_ms` pace.
 ///
 /// Frames come out re-stamped on the replay's own clock, which starts at 0

@@ -33,9 +33,9 @@ fn a_half_closed_pinch_neither_grabs_nor_drops() {
             // Close the pinch, then relax to 4 cm while moving: still held.
             hold(&[Pose::pinched(START + step)], SETTLE),
             hold(&[Pose::gap(START + 2.0 * step, 0.04)], SETTLE),
-            // Open past 5 cm: dropped, so this motion is ignored.
-            hold(&[Pose::gap(START + 2.0 * step, 0.06)], SETTLE),
-            hold(&[Pose::gap(START + 3.0 * step, 0.06)], SETTLE),
+            // Open past 6.5 cm: dropped, so this motion is ignored.
+            hold(&[Pose::gap(START + 2.0 * step, 0.08)], SETTLE),
+            hold(&[Pose::gap(START + 3.0 * step, 0.08)], SETTLE),
         ]
         .concat(),
     );

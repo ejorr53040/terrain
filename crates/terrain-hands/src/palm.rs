@@ -9,6 +9,8 @@ use std::path::Path;
 use glam::Vec2;
 use ort::{session::Session, value::Tensor};
 
+use crate::{HandRegion, RgbaImage};
+
 /// The bundled palm detection model (see `models/SOURCES.json`).
 pub const PALM_MODEL: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -41,44 +43,6 @@ const ROW: usize = 4 + 2 * NUM_KEYPOINTS;
 const WRIST: usize = 0;
 const MIDDLE_KNUCKLE: usize = 2;
 
-/// A borrowed RGBA image, row-major, 8 bits per channel.
-#[derive(Clone, Copy)]
-pub struct RgbaImage<'a> {
-    pub width: u32,
-    pub height: u32,
-    pub pixels: &'a [u8],
-}
-
-/// Where a hand is: a square in image pixels (x right, y down), turned so
-/// the hand points up inside it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct HandRegion {
-    pub center: Vec2,
-    /// Side length, in pixels.
-    pub size: f32,
-    /// Radians; the region's up (-y) axis is the image's turned by this,
-    /// clockwise on screen.
-    pub rotation: f32,
-    /// Detector confidence, 0..1.
-    pub score: f32,
-}
-
-impl HandRegion {
-    /// Whether `point` (image pixels) lies inside the region.
-    pub fn contains(&self, point: Vec2) -> bool {
-        let local = Vec2::from_angle(-self.rotation).rotate(point - self.center);
-        local.abs().max_element() <= self.size / 2.0
-    }
-
-    /// Corners in image pixels, clockwise on screen from top-left.
-    pub fn corners(&self) -> [Vec2; 4] {
-        let turn = Vec2::from_angle(self.rotation);
-        let h = self.size / 2.0;
-        [(-h, -h), (h, -h), (h, h), (-h, h)]
-            .map(|(x, y)| self.center + turn.rotate(Vec2::new(x, y)))
-    }
-}
-
 /// Finds hands in images.
 pub struct PalmDetector {
     session: Session,
@@ -88,7 +52,7 @@ pub struct PalmDetector {
 impl PalmDetector {
     pub fn new(model: impl AsRef<Path>) -> ort::Result<Self> {
         Ok(Self {
-            session: Session::builder()?.commit_from_file(model)?,
+            session: crate::model::load(model)?,
             anchors: anchors(),
         })
     }
@@ -162,22 +126,13 @@ impl Letterbox {
     /// The model input: RGB, 0..1, HWC, bilinear-sampled.
     fn sample(&self, image: RgbaImage) -> Vec<f32> {
         let mut input = vec![0.0; INPUT_SIDE * INPUT_SIDE * 3];
-        let (w, h) = (image.width as usize, image.height as usize);
-        let at = |x: usize, y: usize, c: usize| image.pixels[(y * w + x) * 4 + c] as f32 / 255.0;
         for row in 0..INPUT_SIDE {
             for col in 0..INPUT_SIDE {
-                let p = self.to_image(Vec2::new(col as f32 + 0.5, row as f32 + 0.5)) - 0.5;
-                if p.x < -0.5 || p.y < -0.5 || p.x > w as f32 - 0.5 || p.y > h as f32 - 0.5 {
-                    continue;
-                }
-                let p = p.clamp(Vec2::ZERO, Vec2::new(w as f32 - 1.0, h as f32 - 1.0));
-                let (x0, y0) = (p.x as usize, p.y as usize);
-                let (x1, y1) = ((x0 + 1).min(w - 1), (y0 + 1).min(h - 1));
-                let (fx, fy) = (p.x - x0 as f32, p.y - y0 as f32);
-                for c in 0..3 {
-                    let top = at(x0, y0, c) * (1.0 - fx) + at(x1, y0, c) * fx;
-                    let bottom = at(x0, y1, c) * (1.0 - fx) + at(x1, y1, c) * fx;
-                    input[(row * INPUT_SIDE + col) * 3 + c] = top * (1.0 - fy) + bottom * fy;
+                let p = self.to_image(Vec2::new(col as f32 + 0.5, row as f32 + 0.5));
+                // Outside the image: the black bars.
+                if image.covers(p) {
+                    let at = (row * INPUT_SIDE + col) * 3;
+                    input[at..at + 3].copy_from_slice(&image.sample(p));
                 }
             }
         }
@@ -235,15 +190,14 @@ impl Palm {
     /// fingers.
     fn region(&self) -> HandRegion {
         let up = self.keypoints[MIDDLE_KNUCKLE] - self.keypoints[WRIST];
-        // Angle from the region's up (0, -1) to `up`, clockwise on screen.
-        let rotation = Vec2::NEG_Y.angle_to(up);
-        let fingers = Vec2::from_angle(rotation).rotate(Vec2::NEG_Y);
-        HandRegion {
-            center: self.center + fingers * self.size.y * REGION_SHIFT,
-            size: self.size.max_element() * REGION_SCALE,
-            rotation,
-            score: self.score,
-        }
+        HandRegion::around(
+            self.center,
+            self.size,
+            up,
+            REGION_SCALE,
+            REGION_SHIFT,
+            self.score,
+        )
     }
 }
 
@@ -252,10 +206,14 @@ impl Palm {
 fn weighted_nms(mut palms: Vec<Palm>) -> Vec<Palm> {
     palms.sort_by(|a, b| b.score.total_cmp(&a.score));
     let mut merged = Vec::new();
-    while let Some(best) = palms.first().copied() {
-        let (cluster, rest): (Vec<Palm>, Vec<Palm>) = palms
+    while !palms.is_empty() {
+        // Taken out explicitly: a degenerate (zero-size) box doesn't
+        // overlap even itself, and must not stay in the list forever.
+        let best = palms.remove(0);
+        let (mut cluster, rest): (Vec<Palm>, Vec<Palm>) = palms
             .into_iter()
             .partition(|p| best.iou(p) > MIN_SUPPRESSION_IOU);
+        cluster.push(best);
         palms = rest;
         let total: f32 = cluster.iter().map(|p| p.score).sum();
         let mean = |f: &dyn Fn(&Palm) -> Vec2| {

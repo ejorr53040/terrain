@@ -1,28 +1,34 @@
 //! terrain: a cube you move with your hands.
 //!
-//! Until live tracking lands, hands come from a replay fixture while the
-//! webcam only feeds the preview:
-//! `terrain-app [--replay <fixture.json>] [--camera <device>]`
-//! (defaults: the bundled demo, looped; `/dev/video0`).
+//! Hands come from the webcam (`--camera <device>`, default `/dev/video0`),
+//! or from a recorded fixture with `--replay <fixture.json>` (looped; the
+//! webcam then only feeds the preview).
 
 use bevy::prelude::*;
-use terrain_app::{DEFAULT_CAMERA, DEMO_FIXTURE, GrabPlugin, Grabbable, PreviewPlugin};
-use terrain_hands::ReplaySource;
+use terrain_app::{DEFAULT_CAMERA, GrabPlugin, Grabbable, PreviewPlugin, start_tracking};
+use terrain_hands::{HandSource, ReplaySource};
 
 fn main() -> AppExit {
     let args: Vec<String> = std::env::args().collect();
-    let option = |name: &str, default: &str| match args.iter().position(|a| a == name) {
-        Some(i) => args
-            .get(i + 1)
-            .unwrap_or_else(|| panic!("{name} needs a value"))
-            .clone(),
-        None => default.to_string(),
+    let option = |name: &str| {
+        args.iter().position(|a| a == name).map(|i| {
+            args.get(i + 1)
+                .unwrap_or_else(|| panic!("{name} needs a value"))
+                .clone()
+        })
     };
-    let fixture = option("--replay", DEMO_FIXTURE);
-    let device = option("--camera", DEFAULT_CAMERA);
-    let source = ReplaySource::from_json_file(&fixture)
-        .unwrap_or_else(|e| panic!("can't load replay fixture {fixture}: {e}"))
-        .looping();
+    let device = option("--camera").unwrap_or_else(|| DEFAULT_CAMERA.to_string());
+    let tracking = start_tracking(&device);
+    let source: Box<dyn HandSource> = match (option("--replay"), &tracking) {
+        (Some(fixture), _) => Box::new(
+            ReplaySource::from_json_file(&fixture)
+                .unwrap_or_else(|e| panic!("can't load replay fixture {fixture}: {e}"))
+                .looping(),
+        ),
+        (None, Ok(tracker)) => Box::new(tracker.hand_source()),
+        // No webcam: the overlay says why, and no hands ever arrive.
+        (None, Err(_)) => Box::new(ReplaySource::new(Vec::new())),
+    };
 
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -33,7 +39,7 @@ fn main() -> AppExit {
             ..default()
         }))
         .add_plugins(GrabPlugin::new(source))
-        .add_plugins(PreviewPlugin { device })
+        .add_plugins(PreviewPlugin::new(tracking))
         .add_systems(Startup, spawn_scene)
         .run()
 }

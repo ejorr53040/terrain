@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use bevy::prelude::*;
 use terrain_hands::{FORGET_AFTER_MS, HandSource, HandState, HandStateEstimator, TrackedHands};
 
-pub use preview::{DEFAULT_CAMERA, PreviewPlugin};
+pub use preview::{DEFAULT_CAMERA, PreviewPlugin, start_tracking};
 
 /// Hand motion is amplified by this much when applied to a grabbed entity,
 /// so small, comfortable movements cover the scene.

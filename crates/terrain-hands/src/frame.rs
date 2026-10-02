@@ -24,7 +24,9 @@ pub struct HandFrame {
     pub hands: Vec<Hand>,
 }
 
-/// One tracked hand, in MediaPipe's conventions, in the mirrored (selfie) view.
+/// One tracked hand, in MediaPipe's conventions. The tracker reports it
+/// for the camera image as captured; `HandFrame`s, and everything the app
+/// sees, carry it `mirrored` to the selfie view.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Hand {
     pub handedness: Handedness,
@@ -36,6 +38,20 @@ pub struct Hand {
 }
 
 impl Hand {
+    /// The same hand seen in a mirror: image and world x flipped, and so
+    /// the other handedness.
+    pub fn mirrored(&self) -> Hand {
+        Hand {
+            handedness: match self.handedness {
+                Handedness::Left => Handedness::Right,
+                Handedness::Right => Handedness::Left,
+            },
+            score: self.score,
+            image: self.image.map(|p| Vec3::new(1.0 - p.x, p.y, p.z)),
+            world: self.world.map(|p| Vec3::new(-p.x, p.y, p.z)),
+        }
+    }
+
     /// Thumb-tip to index-tip distance in meters.
     pub fn pinch_gap(&self) -> f32 {
         self.world[landmark::THUMB_TIP].distance(self.world[landmark::INDEX_TIP])
