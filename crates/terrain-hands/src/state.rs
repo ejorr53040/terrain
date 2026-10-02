@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::{Hand, HandFrame, landmark};
+use crate::{Hand, HandFrame};
 
 /// Pinch closes below this thumb-tip to index-tip distance (meters)...
 const PINCH_CLOSE_M: f32 = 0.03;
@@ -72,23 +72,19 @@ impl HandStateEstimator {
         };
         self.pinching = self.next_pinch(hand);
         Some(HandState {
-            position: self.palm_center(hand),
+            position: self
+                .camera
+                .unproject(hand.palm_image_center(), ASSUMED_DEPTH_M),
             pinching: self.pinching,
         })
     }
 
     fn next_pinch(&self, hand: &Hand) -> bool {
-        let gap = hand.world[landmark::THUMB_TIP].distance(hand.world[landmark::INDEX_TIP]);
+        let gap = hand.pinch_gap();
         if self.pinching {
             gap <= PINCH_OPEN_M
         } else {
             gap < PINCH_CLOSE_M
         }
-    }
-
-    fn palm_center(&self, hand: &Hand) -> Vec3 {
-        let image = landmark::PALM.iter().map(|&i| hand.image[i]).sum::<Vec3>()
-            / landmark::PALM.len() as f32;
-        self.camera.unproject(image, ASSUMED_DEPTH_M)
     }
 }

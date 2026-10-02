@@ -4,10 +4,8 @@
 //! `terrain-app [--replay <fixture.json>]` (defaults to the bundled demo, looped).
 
 use bevy::prelude::*;
-use terrain_app::{GrabPlugin, Grabbable};
+use terrain_app::{DEMO_FIXTURE, GrabPlugin, Grabbable};
 use terrain_hands::ReplaySource;
-
-const DEMO_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/demo-drag.json");
 
 fn main() -> AppExit {
     let args: Vec<String> = std::env::args().collect();

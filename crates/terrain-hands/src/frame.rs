@@ -35,6 +35,18 @@ pub struct Hand {
     pub world: [Vec3; 21],
 }
 
+impl Hand {
+    /// Thumb-tip to index-tip distance in meters.
+    pub fn pinch_gap(&self) -> f32 {
+        self.world[landmark::THUMB_TIP].distance(self.world[landmark::INDEX_TIP])
+    }
+
+    /// Mean image position of the palm landmarks.
+    pub fn palm_image_center(&self) -> Vec3 {
+        landmark::PALM.iter().map(|&i| self.image[i]).sum::<Vec3>() / landmark::PALM.len() as f32
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Handedness {
     Left,

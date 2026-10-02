@@ -5,12 +5,10 @@
 
 use bevy::prelude::*;
 use terrain_app::{GrabPlugin, Grabbable};
-use terrain_hands::{Hand, HandFrame, HandSource, Handedness, ReplaySource};
+use terrain_hands::{CameraModel, Hand, HandFrame, HandSource, Handedness, ReplaySource};
 
-/// Horizontal field of view and aspect ratio the test camera projects with.
-/// Matches the app's default camera model.
-pub const HFOV_DEG: f32 = 65.0;
-pub const ASPECT: f32 = 16.0 / 9.0;
+/// Thumb-to-index gap of a firmly closed pinch, in meters.
+pub const PINCHED_GAP: f32 = 0.01;
 
 /// An open right hand, palm to the camera, fingers up. Meters, origin near
 /// the palm center, x right, y up, z away from the camera.
@@ -56,10 +54,7 @@ impl Pose {
     }
 
     pub fn pinched(at: Vec3) -> Self {
-        Self {
-            at,
-            pinch_gap: Some(0.01),
-        }
+        Self::gap(at, PINCHED_GAP)
     }
 
     pub fn gap(at: Vec3, gap: f32) -> Self {
@@ -77,8 +72,11 @@ pub fn hand(pose: Pose) -> Hand {
     if let Some(gap) = pose.pinch_gap {
         local[4] = local[8] + Vec3::new(-gap, 0.0, 0.0);
     }
-    let half_w = (HFOV_DEG.to_radians() / 2.0).tan();
-    let half_h = half_w / ASPECT;
+    // Project with our own pinhole math, using the app's default camera values,
+    // so the app's unprojection is checked rather than reused.
+    let camera = CameraModel::default();
+    let half_w = (camera.hfov_deg.to_radians() / 2.0).tan();
+    let half_h = half_w / camera.aspect;
     let image = local.map(|p| {
         let c = pose.at + p;
         Vec3::new(

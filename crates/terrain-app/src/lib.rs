@@ -7,7 +7,10 @@ use terrain_hands::{HandSource, HandState, HandStateEstimator};
 
 /// Hand motion is amplified by this much when applied to a grabbed entity,
 /// so small, comfortable movements cover the scene.
-pub const GAIN: f32 = 1.5;
+pub const GRAB_GAIN: f32 = 1.5;
+
+/// The bundled demo replay: a pinch that drags the cube around a circle.
+pub const DEMO_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/demo-drag.json");
 
 /// An entity hands can pick up and move.
 #[derive(Component)]
@@ -55,11 +58,13 @@ struct Hands {
 
 /// The entity being held, and where it and the hand were when the pinch began.
 #[derive(Resource, Default)]
-struct Grab(Option<GrabStart>);
+struct Grab {
+    held: Option<GrabStart>,
+}
 
 struct GrabStart {
     entity: Entity,
-    hand: Vec3,
+    hand_position: Vec3,
     transform: Transform,
 }
 
@@ -71,7 +76,7 @@ fn read_hands(mut hands: ResMut<Hands>) {
 }
 
 /// Relative clutch: while pinched, the entity moves by the hand's motion since
-/// the pinch began, times `GAIN`. Camera space (x right, y up, z away from the
+/// the pinch began, times `GRAB_GAIN`. Camera space (x right, y up, z away from the
 /// camera, i.e. toward the viewer) lines up with the scene's axes.
 fn drive_grab(
     hands: Res<Hands>,
@@ -79,15 +84,15 @@ fn drive_grab(
     mut grabbables: Query<(Entity, &mut Transform), With<Grabbable>>,
 ) {
     let Some(hand) = hands.current.filter(|h| h.pinching) else {
-        grab.0 = None;
+        grab.held = None;
         return;
     };
-    match &grab.0 {
+    match &grab.held {
         None => {
             if let Some((entity, transform)) = grabbables.iter().next() {
-                grab.0 = Some(GrabStart {
+                grab.held = Some(GrabStart {
                     entity,
-                    hand: hand.position,
+                    hand_position: hand.position,
                     transform: *transform,
                 });
             }
@@ -95,7 +100,7 @@ fn drive_grab(
         Some(start) => {
             if let Ok((_, mut transform)) = grabbables.get_mut(start.entity) {
                 transform.translation =
-                    start.transform.translation + GAIN * (hand.position - start.hand);
+                    start.transform.translation + GRAB_GAIN * (hand.position - start.hand_position);
             }
         }
     }

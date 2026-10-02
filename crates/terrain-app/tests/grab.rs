@@ -58,8 +58,9 @@ fn releasing_and_regrabbing_carries_the_cube_farther_than_one_reach() {
 
 #[test]
 fn demo_fixture_drags_the_cube_around_a_circle_and_back() {
-    let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/demo-drag.json");
-    let mut h = Harness::with_source(terrain_hands::ReplaySource::from_json_file(fixture).unwrap());
+    let mut h = Harness::with_source(
+        terrain_hands::ReplaySource::from_json_file(terrain_app::DEMO_FIXTURE).unwrap(),
+    );
     // 30 open frames, the pinch, then half of the 120-frame circle.
     h.run(30 + 1 + 60);
     assert_near(h.cube().translation, Vec3::new(-0.24, 0.0, 0.0));

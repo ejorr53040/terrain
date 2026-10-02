@@ -31,7 +31,7 @@ fn main() {
             f
         })
         .collect();
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/demo-drag.json");
+    let path = terrain_app::DEMO_FIXTURE;
     std::fs::create_dir_all(std::path::Path::new(path).parent().unwrap()).unwrap();
     std::fs::write(path, serde_json::to_string(&frames).unwrap()).unwrap();
     println!("wrote {} frames to {path}", frames.len());
