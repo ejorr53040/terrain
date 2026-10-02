@@ -58,14 +58,17 @@ impl Hand {
 
     /// Orientation of the palm in camera axes: y toward the fingers, z out of
     /// the palm's plane, built from the wrist and the index and pinky knuckles.
-    pub fn palm_rotation(&self) -> Quat {
+    /// z points out of the back of one hand and the palm of the other, which
+    /// doesn't matter: only changes in a hand's rotation are used. `None` if
+    /// the knuckles are collinear with the wrist.
+    pub fn palm_rotation(&self) -> Option<Quat> {
         let wrist = self.world_in_camera(landmark::WRIST);
         let index = self.world_in_camera(landmark::INDEX_MCP) - wrist;
         let pinky = self.world_in_camera(landmark::PINKY_MCP) - wrist;
-        let fingers = (index + pinky).normalize();
-        let normal = index.cross(pinky).normalize();
+        let fingers = (index + pinky).try_normalize()?;
+        let normal = index.cross(pinky).try_normalize()?;
         let side = fingers.cross(normal);
-        Quat::from_mat3(&Mat3::from_cols(side, fingers, normal))
+        Some(Quat::from_mat3(&Mat3::from_cols(side, fingers, normal)))
     }
 }
 

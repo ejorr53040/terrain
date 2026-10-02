@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use terrain_app::{GrabPlugin, Grabbable};
-use terrain_hands::{CameraModel, Hand, HandFrame, HandSource, Handedness, ReplaySource};
+use terrain_hands::{CameraModel, Hand, HandFrame, HandSource, Handedness, ReplaySource, landmark};
 
 /// Thumb-to-index gap of a firmly closed pinch, in meters.
 pub const PINCHED_GAP: f32 = 0.01;
@@ -80,7 +80,7 @@ pub fn hand(pose: Pose) -> Hand {
     if let Some(gap) = pose.pinch_gap {
         local[4] = local[8] + Vec3::new(-gap, 0.0, 0.0);
     }
-    let palm = [0, 5, 9, 13, 17].map(|i| local[i]).iter().sum::<Vec3>() / 5.0;
+    let palm = landmark::PALM.map(|i| local[i]).iter().sum::<Vec3>() / landmark::PALM.len() as f32;
     let local = local.map(|p| pose.rotation * (p - palm));
     // Project with our own pinhole math, using the app's default camera values,
     // so the app's unprojection is checked rather than reused.

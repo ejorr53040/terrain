@@ -26,32 +26,44 @@ impl Default for CameraModel {
 
 impl CameraModel {
     /// Where the hand's world-landmark origin sits in camera space (meters;
-    /// x right, y up, z = distance from the camera).
+    /// x right, y up, z = distance from the camera), or `None` if the
+    /// landmarks are degenerate.
     ///
     /// World landmarks give the hand's true shape in meters, already aligned
     /// with the camera's axes; image landmarks say where each one lands on
     /// screen. For a pinhole camera every landmark then gives two equations
     /// that are linear in the unknown origin, so a least-squares solve over
     /// all 21 recovers position and depth together, exact under perspective.
-    fn locate(&self, hand: &Hand) -> Vec3 {
-        let a = 2.0 * (self.hfov_deg.to_radians() / 2.0).tan();
-        let b = a / self.aspect;
+    fn locate(&self, hand: &Hand) -> Option<Vec3> {
+        // Size of the visible image plane one meter from the camera.
+        let width_at_1m = 2.0 * (self.hfov_deg.to_radians() / 2.0).tan();
+        let height_at_1m = width_at_1m / self.aspect;
+        // Accumulate the normal equations AᵀA·o = Aᵀb for the origin o.
         let mut normal = Mat3::ZERO;
         let mut rhs = Vec3::ZERO;
-        for i in 0..21 {
+        for i in 0..hand.image.len() {
             let w = hand.world_in_camera(i);
             let du = hand.image[i].x - 0.5;
             let dv = hand.image[i].y - 0.5;
-            // u: x / (a z) = du    v: -y / (b z) = dv
+            // Landmark i sits at o + w, so the pinhole gives
+            //   o.x + w.x = width_at_1m·du·(o.z + w.z)
+            //   o.y + w.y = -height_at_1m·dv·(o.z + w.z)
+            // rearranged into rows of A (acting on o) and entries of b:
             for (row, value) in [
-                (Vec3::new(1.0, 0.0, -a * du), a * du * w.z - w.x),
-                (Vec3::new(0.0, -1.0, -b * dv), b * dv * w.z + w.y),
+                (
+                    Vec3::new(1.0, 0.0, -width_at_1m * du),
+                    width_at_1m * du * w.z - w.x,
+                ),
+                (
+                    Vec3::new(0.0, -1.0, -height_at_1m * dv),
+                    height_at_1m * dv * w.z + w.y,
+                ),
             ] {
                 normal += Mat3::from_cols(row * row.x, row * row.y, row * row.z);
                 rhs += row * value;
             }
         }
-        normal.inverse() * rhs
+        (normal.determinant().abs() > 1e-9).then(|| normal.inverse() * rhs)
     }
 }
 
@@ -86,10 +98,16 @@ impl HandStateEstimator {
             self.pinching = false;
             return None;
         };
+        let (Some(origin), Some(rotation)) = (self.camera.locate(hand), hand.palm_rotation())
+        else {
+            // Degenerate landmarks: treat as no hand rather than feed NaNs on.
+            self.pinching = false;
+            return None;
+        };
         self.pinching = self.next_pinch(hand);
         Some(HandState {
-            position: self.camera.locate(hand) + hand.palm_center_offset(),
-            rotation: hand.palm_rotation(),
+            position: origin + hand.palm_center_offset(),
+            rotation,
             pinching: self.pinching,
         })
     }
