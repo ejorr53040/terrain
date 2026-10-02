@@ -1,4 +1,4 @@
-//! terrain: a cube you move with your hands.
+//! terrain: two cubes you move with your hands, one in each.
 //!
 //! Hands come from the webcam (`--camera <device>`, default `/dev/video0`),
 //! or from a recorded fixture with `--replay <fixture.json>` (looped; the
@@ -11,7 +11,8 @@ use std::path::PathBuf;
 
 use bevy::prelude::*;
 use terrain_app::{
-    DEFAULT_CAMERA, GrabPlugin, Grabbable, PreviewPlugin, load_camera, start_tracking,
+    CUBE_STARTS, DEFAULT_CAMERA, GrabPlugin, Grabbable, PreviewPlugin, SCENE_CAMERA_AT,
+    load_camera, start_tracking,
 };
 use terrain_hands::{HandSource, ReplaySource};
 
@@ -71,7 +72,7 @@ fn spawn_scene(
 ) {
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, 0.25, 1.2).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_translation(SCENE_CAMERA_AT).looking_at(Vec3::ZERO, Vec3::Y),
     ));
     commands.spawn((
         DirectionalLight {
@@ -80,12 +81,19 @@ fn spawn_scene(
         },
         Transform::from_xyz(1.0, 2.0, 1.5).looking_at(Vec3::ZERO, Vec3::Y),
     ));
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::from_length(0.15))),
-        MeshMaterial3d(materials.add(Color::srgb(0.35, 0.65, 0.95))),
-        Transform::default(),
-        Grabbable,
-    ));
+    let cube = meshes.add(Cuboid::from_length(0.15));
+    // One cube per hand: blue on the left, orange on the right.
+    for (at, color) in CUBE_STARTS
+        .into_iter()
+        .zip([Color::srgb(0.35, 0.65, 0.95), Color::srgb(0.95, 0.6, 0.3)])
+    {
+        commands.spawn((
+            Mesh3d(cube.clone()),
+            MeshMaterial3d(materials.add(color)),
+            Transform::from_translation(at),
+            Grabbable,
+        ));
+    }
 }
 
 /// Where calibration is kept: `$XDG_CONFIG_HOME/terrain`, or `~/.config/terrain`.

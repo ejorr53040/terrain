@@ -259,7 +259,7 @@ fn a_looping_replay_keeps_time_moving_forward() {
 fn a_held_pinch_survives_one_frame_that_reads_open() {
     // A blurred frame can read as an open hand mid-drag; the loose pinch
     // after it (too open to start a grab) must still be holding.
-    let loose = 0.04;
+    let loose = 0.05;
     let mut h = Harness::new(
         [
             hold(&[Pose::pinched(START)], SETTLE),

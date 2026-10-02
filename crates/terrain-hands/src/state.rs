@@ -9,10 +9,11 @@ use crate::{
 };
 
 /// Pinch closes below this thumb-tip to index-tip distance (meters)...
-const PINCH_CLOSE_M: f32 = 0.03;
+const PINCH_CLOSE_M: f32 = 0.04;
 /// ...and opens above this one. The gap between them stops flicker. Measured
-/// on a webcam: a firm pinch reads 1–3 cm, a relaxed hold up to about 5 cm,
-/// an open hand about 9 cm.
+/// on a webcam: a firm pinch reads 1–3 cm (3–4 cm beside the other hand,
+/// its thumb partly hidden), a relaxed hold up to about 5 cm, an open hand
+/// about 9 cm.
 const PINCH_OPEN_M: f32 = 0.065;
 /// A pinch opens only after reading open on this many frames in a row, so a
 /// single blurred frame doesn't drop what the hand is holding.
@@ -188,6 +189,9 @@ pub struct HandState {
     pub handedness: Handedness,
     /// Palm center, meters.
     pub position: Vec3,
+    /// Palm center in the image as the frame gave it (mirrored for a live
+    /// source), normalized: where the hand is on screen.
+    pub in_image: Vec2,
     /// Palm orientation; only changes in it are meaningful.
     pub rotation: Quat,
     pub pinching: bool,
@@ -385,6 +389,7 @@ impl HandStateEstimator {
         let depth = track.depth.filter(Vec3::Z * palm.z, dt);
         Some(HandState {
             id: track.id,
+            in_image: hand.palm_in_image(),
             handedness: hand.handedness,
             position: across.with_z(depth.z),
             rotation: track.rotation.filter(rotation, dt),

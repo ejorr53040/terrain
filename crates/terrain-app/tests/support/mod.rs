@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use bevy::{prelude::*, time::TimeUpdateStrategy};
-use terrain_app::{GrabPlugin, Grabbable};
+use terrain_app::{GrabPlugin, Grabbable, SCENE_CAMERA_AT};
 use terrain_hands::{CameraModel, Hand, HandFrame, HandSource, Handedness, ReplaySource, landmark};
 
 /// Time between camera frames, and between app updates, in tests.
@@ -181,11 +181,12 @@ pub fn no_hands() -> HandFrame {
     frame(&[])
 }
 
-/// A headless app with one cube at the origin. Each update advances the
-/// clock by `FRAME_MS`.
+/// A headless app with one cube at the origin (or several cubes and a scene
+/// camera, with `with_cubes`). Each update advances the clock by `FRAME_MS`.
 pub struct Harness {
     pub app: App,
     pub cube: Entity,
+    pub cubes: Vec<Entity>,
     /// Frames given up front, for `run_all`; 0 for `with_source`.
     frame_count: usize,
 }
@@ -226,8 +227,45 @@ impl Harness {
         Self {
             app,
             cube,
+            cubes: vec![cube],
             frame_count: 0,
         }
+    }
+
+    /// Plays `frames` (as `new` does) in a scene with a cube at each of
+    /// `at`, seen by a camera where the app puts its own.
+    pub fn with_cubes(frames: Vec<HandFrame>, at: &[Vec3]) -> Self {
+        let mut h = Self::new(frames);
+        let world = h.app.world_mut();
+        world.despawn(h.cube);
+        // Framed like the app's default 1280x720 window.
+        world.spawn((
+            Camera3d::default(),
+            Projection::Perspective(PerspectiveProjection {
+                aspect_ratio: 16.0 / 9.0,
+                ..default()
+            }),
+            Transform::from_translation(SCENE_CAMERA_AT).looking_at(Vec3::ZERO, Vec3::Y),
+        ));
+        h.cubes = at
+            .iter()
+            .map(|&p| {
+                world
+                    .spawn((Transform::from_translation(p), Grabbable))
+                    .id()
+            })
+            .collect();
+        h.cube = h.cubes[0];
+        h
+    }
+
+    /// Cube `i`'s place, of those given to `with_cubes`.
+    pub fn cube_at(&self, i: usize) -> Vec3 {
+        self.app
+            .world()
+            .get::<Transform>(self.cubes[i])
+            .unwrap()
+            .translation
     }
 
     /// Plays every frame given to `new` or `timed`.

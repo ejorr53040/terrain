@@ -27,12 +27,12 @@ fn a_half_closed_pinch_neither_grabs_nor_drops() {
     let step = Vec3::new(0.10, 0.0, 0.0);
     let mut h = Harness::new(
         [
-            // Hovering at 4 cm from open: no grab, so this motion is ignored.
-            hold(&[Pose::gap(START, 0.04)], SETTLE),
-            hold(&[Pose::gap(START + step, 0.04)], SETTLE),
-            // Close the pinch, then relax to 4 cm while moving: still held.
+            // Hovering at 5 cm from open: no grab, so this motion is ignored.
+            hold(&[Pose::gap(START, 0.05)], SETTLE),
+            hold(&[Pose::gap(START + step, 0.05)], SETTLE),
+            // Close the pinch, then relax to 5 cm while moving: still held.
             hold(&[Pose::pinched(START + step)], SETTLE),
-            hold(&[Pose::gap(START + 2.0 * step, 0.04)], SETTLE),
+            hold(&[Pose::gap(START + 2.0 * step, 0.05)], SETTLE),
             // Open past 6.5 cm: dropped, so this motion is ignored.
             hold(&[Pose::gap(START + 2.0 * step, 0.08)], SETTLE),
             hold(&[Pose::gap(START + 3.0 * step, 0.08)], SETTLE),
@@ -100,4 +100,22 @@ fn r_puts_the_cube_back_and_lets_go_of_it() {
     h.press(KeyCode::KeyR).run_all();
     assert_near(h.cube().translation, Vec3::ZERO);
     assert_turned(h.cube().rotation, Quat::IDENTITY);
+}
+
+#[test]
+fn a_pinch_that_reads_a_little_open_still_grabs() {
+    // Beside the other hand, a pinching hand's thumb is partly hidden and
+    // its pinch reads 3-4 cm.
+    let moved = START + Vec3::new(0.10, 0.0, 0.0);
+    let mut h = Harness::new(
+        [
+            hold(&[Pose::open(START)], SETTLE),
+            hold(&[Pose::gap(START, 0.035)], SETTLE),
+            hold(&[Pose::gap(moved, 0.035)], SETTLE),
+            hold(&[Pose::open(moved)], SETTLE),
+        ]
+        .concat(),
+    );
+    h.run_all();
+    assert_near(h.cube().translation, Vec3::new(0.15, 0.0, 0.0));
 }
