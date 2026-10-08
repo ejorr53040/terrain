@@ -10,8 +10,14 @@
 //! the camera and sweeps the pointer, to check the desktop takes input;
 //! `--dry-run` tracks hands and prints what it would do, touching nothing.
 //! Ctrl-C stops, letting go of anything held.
+//!
+//! What the hands are doing is appended, one line per change, to
+//! `$XDG_RUNTIME_DIR/terrain/status` for the bar to show; an empty line
+//! means terrain-desktop has stopped.
 
 use std::{
+    fs::File,
+    io::Write,
     path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
     thread,
@@ -19,7 +25,7 @@ use std::{
 };
 
 use glam::Vec2;
-use terrain_desktop::{DesktopControl, Input, VirtualDesktop};
+use terrain_desktop::{DesktopControl, Input, Status, VirtualDesktop};
 use terrain_hands::{
     CameraModel, HandSource, HandTracker, LANDMARK_MODEL, LiveTracker, PALM_MODEL, capture::Camera,
 };
@@ -82,6 +88,8 @@ fn main() {
     let mut had_control = false;
     let mut last_frame = Instant::now();
     let mut last_report = Instant::now();
+    let mut status_file = status_file();
+    let mut shown = None;
     eprintln!("terrain-desktop: tracking hands on {device}; Ctrl-C to stop");
     while !STOP.load(Ordering::Relaxed) {
         if let Some(failure) = tracker.failure() {
@@ -103,6 +111,11 @@ fn main() {
                 continue;
             }
         };
+        let status = control.status();
+        if shown != Some(status) {
+            shown = Some(status);
+            show(&mut status_file, label(status));
+        }
         let t_ms = frame.as_ref().map_or(0, |f| f.t_ms);
         let hand_count = frame.as_ref().map_or(0, |f| f.hands.len());
         if control.has_control() != had_control {
@@ -135,7 +148,37 @@ fn main() {
             }
         }
     }
+    show(&mut status_file, "");
     // Dropping the virtual devices lets go of anything still held.
+}
+
+/// The status file the bar watches, emptied; `None` if it can't be made
+/// (the indicator is only a nicety).
+fn status_file() -> Option<File> {
+    let dir = PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR")?).join("terrain");
+    std::fs::create_dir_all(&dir).ok()?;
+    File::create(dir.join("status")).ok()
+}
+
+/// Appends `line` to the status file.
+fn show(file: &mut Option<File>, line: &str) {
+    if let Some(f) = file {
+        let _ = writeln!(f, "{line}");
+    }
+}
+
+/// How the bar shows `status`.
+fn label(status: Status) -> &'static str {
+    match status {
+        Status::Disengaged => "✋ Idle",
+        Status::Engaging => "✋ Engaging…",
+        Status::Pointing => "✋ Pointing",
+        Status::Pinch => "🤏 Pinch",
+        Status::Drag => "🤏 Drag",
+        Status::LongPress => "🤏 Right click",
+        Status::WindowDrag => "✊ Window drag",
+        Status::Scroll => "↕ Scroll",
+    }
 }
 
 /// Sweeps the pointer around a circle for a few seconds.

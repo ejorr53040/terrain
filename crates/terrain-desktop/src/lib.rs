@@ -31,6 +31,27 @@ pub enum Button {
     Super,
 }
 
+/// What the hands are doing, for showing on screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Status {
+    /// No hand has control.
+    Disengaged,
+    /// A hand is held open in the reach, about to take control.
+    Engaging,
+    /// The controlling hand is open, moving the pointer.
+    Pointing,
+    /// A pinch that isn't yet a tap, drag or long press.
+    Pinch,
+    /// A pinch dragging with the left button.
+    Drag,
+    /// A pinch held still that right-clicked.
+    LongPress,
+    /// A fist dragging the window under the pointer.
+    WindowDrag,
+    /// The other hand pinching to scroll.
+    Scroll,
+}
+
 /// The part of the camera's view the hand sweeps to cover the whole screen
 /// (normalized view coordinates, x right, y down). Reaching the view's own
 /// edges is awkward, and a palm there is half out of frame and lost.
@@ -158,6 +179,22 @@ impl DesktopControl {
     /// Whether a hand has control of the desktop.
     pub fn has_control(&self) -> bool {
         matches!(self.control, Control::Held { .. })
+    }
+
+    /// What the hands are doing now.
+    pub fn status(&self) -> Status {
+        match self.control {
+            Control::Free => Status::Disengaged,
+            Control::Raising { .. } => Status::Engaging,
+            Control::Held { .. } => match (self.grip, self.pinch.map(|p| p.phase)) {
+                (Grip::Fist, _) => Status::WindowDrag,
+                (_, Some(PinchPhase::Undecided)) => Status::Pinch,
+                (_, Some(PinchPhase::Dragging)) => Status::Drag,
+                (_, Some(PinchPhase::RightClicked)) => Status::LongPress,
+                _ if self.scrolling.is_some() => Status::Scroll,
+                _ => Status::Pointing,
+            },
+        }
     }
 
     /// The input `frame` calls for.

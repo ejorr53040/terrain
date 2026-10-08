@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 
 use glam::{Vec2, Vec3};
-use terrain_desktop::{DesktopControl, Input};
+use terrain_desktop::{DesktopControl, Input, Status};
 use terrain_hands::{CameraModel, Hand, HandFrame, Handedness, landmark};
 
 /// Time between camera frames in tests.
@@ -167,6 +167,15 @@ impl Script {
     pub fn run(&self) -> Vec<Input> {
         let mut control = DesktopControl::new(CameraModel::default());
         self.frames.iter().flat_map(|f| control.update(f)).collect()
+    }
+
+    /// What a fresh `DesktopControl` says it's doing at the script's end.
+    pub fn status(&self) -> Status {
+        let mut control = DesktopControl::new(CameraModel::default());
+        for f in &self.frames {
+            control.update(f);
+        }
+        control.status()
     }
 }
 
