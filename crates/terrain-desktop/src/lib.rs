@@ -370,3 +370,40 @@ fn in_reach(in_view: Vec2) -> bool {
 fn to_screen(in_view: Vec2) -> Vec2 {
     ((in_view - REACH_MIN) / (REACH_MAX - REACH_MIN)).clamp(Vec2::ZERO, Vec2::ONE)
 }
+
+/// What `DesktopControl` does over `frames`, as a log: each press and
+/// release with its time and where the pointer was, then how far the
+/// pointer ranged. The desktop isn't touched.
+pub fn dry_run(frames: &[HandFrame]) -> String {
+    let mut control = DesktopControl::new(CameraModel::default());
+    let (mut lo, mut hi) = (Vec2::ONE, Vec2::ZERO);
+    let mut at = Vec2::ZERO;
+    let mut log = String::new();
+    for frame in frames {
+        for input in control.update(frame) {
+            match input {
+                Input::PointTo(p) => {
+                    lo = lo.min(p);
+                    hi = hi.max(p);
+                    at = p;
+                }
+                Input::Scroll(_) => {}
+                other => {
+                    log += &format!(
+                        "{:>6} ms  {other:?} at ({:.2}, {:.2})\n",
+                        frame.t_ms, at.x, at.y
+                    )
+                }
+            }
+        }
+    }
+    log += &format!(
+        "{} frames; pointer ranged x {:.2}..{:.2}, y {:.2}..{:.2}\n",
+        frames.len(),
+        lo.x,
+        hi.x,
+        lo.y,
+        hi.y
+    );
+    log
+}

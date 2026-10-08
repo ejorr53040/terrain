@@ -1,3 +1,4 @@
+# PENDING design (#19): meant as one drag until the hand leaves; today blur opens the pinch early; see intent.md
   3633 ms  Press(Left) at (0.65, 0.64)
   3933 ms  Release(Left) at (0.85, 0.61)
 300 frames; pointer ranged x 0.65..0.92, y 0.58..0.64

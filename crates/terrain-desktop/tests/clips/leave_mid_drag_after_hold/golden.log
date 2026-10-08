@@ -1,3 +1,4 @@
+# PENDING design (#19): meant as a left drag released on hand loss; today a right click; see intent.md
   3899 ms  Press(Right) at (0.62, 0.70)
   3899 ms  Release(Right) at (0.62, 0.70)
 300 frames; pointer ranged x 0.61..0.62, y 0.70..0.73

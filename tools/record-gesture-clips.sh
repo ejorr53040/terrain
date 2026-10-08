@@ -185,7 +185,7 @@ finish() {
 #
 # Each clip: 10 s of webcam, split into JPEGs (kept in ~/.cache), tracked
 # into replay frames, and run through today's desktop control as a dry run.
-# The repo keeps frames.json, dryrun.log and intent.md per clip, for the
+# The repo keeps frames.json, golden.log and intent.md per clip, for the
 # golden replays (#18). Re-running offers to keep clips already recorded.
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -240,9 +240,9 @@ clip() {
     ffmpeg -loglevel error -f mjpeg -i "$RAW/$name.mjpg" -c:v copy "$RAW/$name/f%03d.jpg"
     note "tracking hands…"
     "$REPLAY_CLIP" "$RAW/$name" --every-frame --save-frames "$dir/frames.json" >/dev/null
-    "$REPLAY_DESKTOP" "$dir/frames.json" > "$dir/dryrun.log"
+    "$REPLAY_DESKTOP" "$dir/frames.json" > "$dir/golden.log"
     printf '\n  %sToday'"'"'s desktop control would do:%s\n' "$BOLD" "$RESET"
-    sed 's/^/    /' "$dir/dryrun.log"
+    sed 's/^/    /' "$dir/golden.log"
     printf '\n'
     if confirm "Keep this take? (n retakes it)"; then break; fi
     _clear
@@ -409,5 +409,5 @@ t 7–10 keep it out of view, still pinched" \
 - nothing left held; control let go"
 
 finish
-note "Clips are in ${OUT#"$ROOT"/} (frames.json, dryrun.log, intent.md each)."
+note "Clips are in ${OUT#"$ROOT"/} (frames.json, golden.log, intent.md each)."
 note "Raw JPEGs are in $RAW. Tell Claude to check them for #16 and #18."
