@@ -13,7 +13,7 @@ comes naturally.
 
 ## Expected actions
 
-- PENDING design (#19): the user meant a left drag that is released within
-  about 0.3 s of the hand vanishing
-- today: a right click at pinch + 600 ms, then nothing more; nothing held
+- a left drag: Press Left where the pinch closed once it starts moving,
+  then Release Left within about 0.3 s of the hand vanishing (a still
+  pinch that then moves drags)
 - in every case: no button held after the hand leaves

@@ -1,4 +1,3 @@
-# PENDING design (#19): meant as a left drag; today a still pinch right-clicks at 600 ms; see intent.md
-  3166 ms  Press(Right) at (0.62, 0.70)
-  3166 ms  Release(Right) at (0.62, 0.70)
+  4333 ms  Press(Left) at (0.62, 0.70)
+  5866 ms  Release(Left) at (0.79, 0.73)
 300 frames; pointer ranged x 0.61..0.81, y 0.70..1.00

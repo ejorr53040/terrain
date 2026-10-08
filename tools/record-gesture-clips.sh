@@ -302,8 +302,7 @@ t 7    $LOWER" \
 
 clip drag "Drag" \
 "$RAISE
-t 4    pinch and start moving right at once: a pinch held still for
-       over half a second is a long press (right click)
+t 4    pinch and start moving to your right
 t 4–6  keep pinching while moving about 20 cm to your right
 t 6    open the hand; hold it still for a second
 t 7    $LOWER" \
@@ -320,8 +319,8 @@ t 4–6  keep holding still (2 s)
 t 6    open the hand; hold it still for a second
 t 7    $LOWER" \
 "- the hand takes control
-- one right click (Press Right, Release Right) about 0.6 s after the pinch
-  closed, where the hand pointed
+- one right click (Press Right, Release Right) when the pinch opens,
+  where the pinch closed
 - no left click
 - control let go after the hand is lowered"
 
@@ -397,8 +396,7 @@ t 0–10 type with both hands on the keyboard the whole time, as normal;
 
 clip leave_mid_drag "Hand leaves mid-drag" \
 "$RAISE
-t 4    pinch and start moving right at once: a pinch held still for
-       over half a second is a long press (right click)
+t 4    pinch and start moving to your right
 t 4–7  keep pinching while dragging slowly to your right, on past the
        screen's edge, until the hand leaves the camera's view (slowly: a
        fast sweep blurs the pinch open, which ends the drag early)

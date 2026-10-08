@@ -1,6 +1,6 @@
 //! Drives the real desktop with a hand: the palm points; a pinch works like
-//! a finger on a touchscreen (a tap clicks, moving drags, holding still
-//! right-clicks); a fist drags the window under the pointer.
+//! a finger on a touchscreen (a tap clicks, moving drags, holding still and
+//! letting go right-clicks); a fist drags the window under the pointer.
 //!
 //! A hand takes control only once it's held open in the reach for a
 //! moment, so hands typing at the keyboard below never click.
@@ -44,7 +44,7 @@ pub enum Status {
     Pinch,
     /// A pinch dragging with the left button.
     Drag,
-    /// A pinch held still that right-clicked.
+    /// A pinch held still long enough to right-click when it opens.
     LongPress,
     /// A fist dragging the window under the pointer.
     WindowDrag,
@@ -71,9 +71,10 @@ const GRIP_SETTLE_MS: u64 = 30;
 /// reads as a pinch for about 100 ms on the way, and mustn't click.
 const PINCH_SETTLE_MS: u64 = 120;
 
-/// A pinch that moves the pointer this far (screen widths) is a drag...
+/// A pinch that moves the pointer this far (screen widths) is a drag, even
+/// after holding still...
 const DRAG_START: f32 = 0.02;
-/// ...and one held still this long (ms) a right click.
+/// ...and one held still this long (ms) right-clicks when it opens.
 const LONG_PRESS_MS: u64 = 600;
 
 /// Wheel steps scrolled per view width (or height) the other hand moves:
@@ -126,8 +127,8 @@ enum PinchPhase {
     Undecided,
     /// It moved: the left button is down, dragging.
     Dragging,
-    /// It held still: it right-clicked, and does nothing more.
-    RightClicked,
+    /// It held still long enough: opening right-clicks, moving drags.
+    LongPressed,
 }
 
 /// Who has control of the desktop.
@@ -190,7 +191,7 @@ impl DesktopControl {
                 (Grip::Fist, _) => Status::WindowDrag,
                 (_, Some(PinchPhase::Undecided)) => Status::Pinch,
                 (_, Some(PinchPhase::Dragging)) => Status::Drag,
-                (_, Some(PinchPhase::RightClicked)) => Status::LongPress,
+                (_, Some(PinchPhase::LongPressed)) => Status::LongPress,
                 _ if self.scrolling.is_some() => Status::Scroll,
                 _ => Status::Pointing,
             },
@@ -269,7 +270,9 @@ impl DesktopControl {
             return vec![Input::PointTo(point)];
         };
         match pinch.phase {
-            PinchPhase::Undecided if point.distance(pinch.at) > DRAG_START => {
+            PinchPhase::Undecided | PinchPhase::LongPressed
+                if point.distance(pinch.at) > DRAG_START =>
+            {
                 pinch.phase = PinchPhase::Dragging;
                 vec![
                     Input::PointTo(pinch.at),
@@ -278,15 +281,11 @@ impl DesktopControl {
                 ]
             }
             PinchPhase::Undecided if t_ms.saturating_sub(pinch.since) >= LONG_PRESS_MS => {
-                pinch.phase = PinchPhase::RightClicked;
-                vec![
-                    Input::PointTo(pinch.at),
-                    Input::Press(Button::Right),
-                    Input::Release(Button::Right),
-                ]
+                pinch.phase = PinchPhase::LongPressed;
+                vec![Input::PointTo(pinch.at)]
             }
             PinchPhase::Dragging => vec![Input::PointTo(point)],
-            PinchPhase::Undecided | PinchPhase::RightClicked => vec![Input::PointTo(pinch.at)],
+            PinchPhase::Undecided | PinchPhase::LongPressed => vec![Input::PointTo(pinch.at)],
         }
     }
 
@@ -338,14 +337,18 @@ impl DesktopControl {
         if t_ms.saturating_sub(since) < settle {
             return Vec::new();
         }
-        // An undecided pinch opening is a tap: a click where it closed. One
-        // tightening into a fist was the fist forming, and one lost with
-        // its hand never happened.
-        let tapped =
-            grip == Grip::Open && self.pinch.is_some_and(|p| p.phase == PinchPhase::Undecided);
+        // An undecided pinch opening is a tap, a left click where it closed;
+        // a long-pressed one opening is a right click there. One tightening
+        // into a fist was the fist forming, and one lost with its hand never
+        // happened.
+        let click = match (grip, self.pinch.map(|p| p.phase)) {
+            (Grip::Open, Some(PinchPhase::Undecided)) => Some(Button::Left),
+            (Grip::Open, Some(PinchPhase::LongPressed)) => Some(Button::Right),
+            _ => None,
+        };
         let mut inputs = self.change_grip(grip);
-        if tapped {
-            inputs.extend([Input::Press(Button::Left), Input::Release(Button::Left)]);
+        if let Some(button) = click {
+            inputs.extend([Input::Press(button), Input::Release(button)]);
         }
         if grip == Grip::Pinch {
             self.pinch = Some(Pinch {

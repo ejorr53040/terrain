@@ -13,7 +13,7 @@ t 7    lower the hand back to the keyboard and leave it there to the end
 ## Expected actions
 
 - the hand takes control
-- one right click (Press Right, Release Right) about 0.6 s after the pinch
-  closed, where the hand pointed
+- one right click (Press Right, Release Right) when the pinch opens, where
+  the pinch closed (a pinch held still 0.6 s right-clicks on opening)
 - no left click
 - control let go after the hand is lowered

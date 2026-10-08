@@ -12,6 +12,7 @@ Recorded as the "Drag" clip; kept because it's how a drag comes naturally.
 
 ## Expected actions
 
-- PENDING design (#19): the user meant a left drag (Press Left where the
-  pinch closed, the pointer moves right, Release Left on opening)
-- today: a right click at pinch + 600 ms, then nothing more
+- a left drag: Press Left where the pinch closed once it starts moving,
+  the pointer moves right, Release Left on opening (decided 2026-10-08: a
+  still pinch that then moves drags; it right-clicks only if it opens
+  without moving)

@@ -59,3 +59,33 @@ fn a_pinch_that_moves_drags_from_where_it_started() {
         "dragged from {pressed} to {released}"
     );
 }
+
+#[test]
+fn a_pinch_held_still_then_moved_drags_instead_of_right_clicking() {
+    let inputs = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Pinch, 40)
+        .sweep(AHEAD, RIGHT, Grip::Pinch, 10)
+        .hold(RIGHT, Grip::Open, 10)
+        .run();
+    assert_eq!(
+        buttons(&inputs),
+        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+    );
+    let pressed = point_at_each_button(&inputs)[0].1.unwrap();
+    assert!((pressed.x - 0.5).abs() < 0.02, "pressed at {pressed}");
+}
+
+#[test]
+fn a_pinch_held_still_right_clicks_only_once_it_opens() {
+    let lost = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Pinch, 40)
+        .gone(20)
+        .run();
+    assert_eq!(
+        buttons(&lost),
+        vec![],
+        "a long press lost with its hand never happened"
+    );
+}
