@@ -9,3 +9,6 @@ terrain-hands.workspace = true
 glam = "0.32"
 libc = "0.2.189"
 serde_json.workspace = true
+
+[dev-dependencies]
+proptest = "1.11.0"
