@@ -19,6 +19,14 @@ const PINCH_OPEN_M: f32 = 0.065;
 /// single blurred frame doesn't drop what the hand is holding.
 const OPEN_FRAMES: u32 = 2;
 
+/// A fist closes once every finger's reach (`Hand::finger_reach`) is below
+/// this...
+const FIST_CLOSE_REACH: f32 = 1.1;
+/// ...and opens once any finger reaches past this one. Measured on webcam
+/// clips: a deliberate pinch keeps a finger above 1.1 in 99% of frames, a
+/// loose fist mostly reads 0.8–1.0, a straight finger about 1.8.
+const FIST_OPEN_REACH: f32 = 1.25;
+
 /// Calibration needs the hand in at least this many frames...
 const CALIBRATION_MIN_FRAMES: usize = 10;
 /// ...held this still: RMS distance of the palm from its mean (meters).
@@ -76,6 +84,13 @@ impl fmt::Display for CalibrationError {
 }
 
 impl CameraModel {
+    /// Width and height of the visible image plane one meter from the
+    /// camera (meters).
+    pub fn view_size_at_1m(&self) -> Vec2 {
+        let width = 2.0 * (self.hfov_deg.to_radians() / 2.0).tan();
+        Vec2::new(width, width / self.aspect)
+    }
+
     /// Whether this could be a real webcam: a field of view webcams have and
     /// a usable tilt. Saved calibrations are checked with it when loaded.
     pub fn plausible(&self) -> bool {
@@ -145,9 +160,10 @@ impl CameraModel {
     /// that are linear in the unknown origin, so a least-squares solve over
     /// all 21 recovers position and depth together, exact under perspective.
     fn locate(&self, hand: &Hand) -> Option<Vec3> {
-        // Size of the visible image plane one meter from the camera.
-        let width_at_1m = 2.0 * (self.hfov_deg.to_radians() / 2.0).tan();
-        let height_at_1m = width_at_1m / self.aspect;
+        let Vec2 {
+            x: width_at_1m,
+            y: height_at_1m,
+        } = self.view_size_at_1m();
         // Accumulate the normal equations AᵀA·o = Aᵀb for the origin o.
         let mut normal = Mat3::ZERO;
         let mut rhs = Vec3::ZERO;
@@ -195,6 +211,9 @@ pub struct HandState {
     /// Palm orientation; only changes in it are meaningful.
     pub rotation: Quat,
     pub pinching: bool,
+    /// Every finger is folded into the palm. A fist's thumb often rests on
+    /// the index finger, so it may read as `pinching` too.
+    pub fist: bool,
     /// The pinch closed in this frame: it was open in the hand's last one.
     pub pinch_started: bool,
 }
@@ -248,6 +267,7 @@ struct Track {
     palm_in_image: Vec2,
     last_seen_ms: u64,
     pinching: bool,
+    fist: bool,
     /// Frames in a row a held pinch has read open.
     open_frames: u32,
     /// x and y, with z held at 0...
@@ -264,6 +284,7 @@ impl Track {
             palm_in_image: Vec2::ZERO,
             last_seen_ms: t_ms,
             pinching: false,
+            fist: false,
             open_frames: 0,
             across: Vec3Filter::new(POSITION_SMOOTHING),
             depth: Vec3Filter::new(DEPTH_SMOOTHING),
@@ -383,6 +404,12 @@ impl HandStateEstimator {
         track.last_seen_ms = t_ms;
         let was_pinching = track.pinching;
         track.pinching = track.next_pinch(hand);
+        let reach = hand.finger_reach();
+        track.fist = if track.fist {
+            reach < FIST_OPEN_REACH
+        } else {
+            reach < FIST_CLOSE_REACH
+        };
         let palm = self.camera.tilt * (origin + hand.palm_center_offset());
         let rotation = self.camera.tilt * rotation;
         let across = track.across.filter(palm.with_z(0.0), dt);
@@ -394,6 +421,7 @@ impl HandStateEstimator {
             position: across.with_z(depth.z),
             rotation: track.rotation.filter(rotation, dt),
             pinching: track.pinching,
+            fist: track.fist,
             pinch_started: track.pinching && !was_pinching,
         })
     }
