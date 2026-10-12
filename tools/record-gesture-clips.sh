@@ -197,7 +197,7 @@ OUT=$ROOT/crates/terrain-desktop/tests/clips
 CAMERA=/dev/video0
 SECONDS_PER_CLIP=10
 
-TOTAL_STAGES=11
+TOTAL_STAGES=12
 
 # camera_free waits until no other program holds the camera.
 camera_free() {
@@ -227,6 +227,8 @@ record() {
 # clip NAME TITLE DO EXPECT: one recorded take, retaken until kept.
 clip() {
   local name="$1" title="$2" todo="$3" expect="$4" dir="$OUT/$1"
+  # ONLY=<name> records just that clip.
+  [[ -z ${ONLY:-} || $ONLY == "$name" ]] || return 0
   stage "$title"
   if [[ -f "$dir/frames.json" ]] && ! confirm "Already recorded. Record it again?"; then
     return
@@ -405,6 +407,18 @@ t 7–10 keep it out of view, still pinched" \
 - Press Left at the pinch, the pointer moves right, then Release Left
   within about 0.3 s of the hand vanishing
 - nothing left held; control let go"
+
+clip fist_push "Fist push (no full screen)" \
+"$RAISE
+t 4    close the hand into a fist and hold it still for half a second
+t 4–5  push the fist straight toward the camera about 15 cm, at your
+       natural speed
+t 5–6  open the hand; hold it still for a second
+t 7    $LOWER" \
+"- the hand takes control
+- one window drag (Super + Left); a push isn't full screen
+- no Super + F, no left or right click
+- control let go after the hand is lowered"
 
 finish
 note "Clips are in ${OUT#"$ROOT"/} (frames.json, golden.log, intent.md each)."

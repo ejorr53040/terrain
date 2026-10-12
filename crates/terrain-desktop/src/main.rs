@@ -112,9 +112,9 @@ fn main() {
             }
         };
         let status = control.status();
-        if shown != Some(status) {
+        if shown.as_ref() != Some(&status) {
+            show(&mut status_file, label(&status));
             shown = Some(status);
-            show(&mut status_file, label(status));
         }
         let t_ms = frame.as_ref().map_or(0, |f| f.t_ms);
         let hand_count = frame.as_ref().map_or(0, |f| f.hands.len());
@@ -167,17 +167,13 @@ fn show(file: &mut Option<File>, line: &str) {
     }
 }
 
-/// How the bar shows `status`.
-fn label(status: Status) -> &'static str {
+/// How the bar shows `status`: a gesture by its gesture-file label.
+fn label(status: &Status) -> &str {
     match status {
         Status::Disengaged => "✋ Idle",
         Status::Engaging => "✋ Engaging…",
         Status::Pointing => "✋ Pointing",
-        Status::Pinch => "🤏 Pinch",
-        Status::Drag => "🤏 Drag",
-        Status::LongPress => "🤏 Right click",
-        Status::WindowDrag => "✊ Window drag",
-        Status::Scroll => "↕ Scroll",
+        Status::Gesture(label) => label,
     }
 }
 

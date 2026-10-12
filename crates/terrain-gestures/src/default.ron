@@ -1,0 +1,73 @@
+// The built-in gestures. A pinch works like a finger on a touchscreen: a
+// tap clicks where it closed, moving drags, holding still then letting go
+// right-clicks. A fist that moves or holds still drags the window under the
+// pointer (Super + left button, the window manager's window drag).
+(
+    gestures: [
+        (
+            pose: Pinch,
+            // A hand closing into a fist reads as a pinch for about 100 ms
+            // on the way, and mustn't click.
+            settle_ms: 120,
+            start: "pinch",
+            states: {
+                "pinch": (
+                    label: "🤏 Pinch",
+                    pointer: Frozen,
+                    on: [
+                        (when: [Pose(Open, 30)], to: "tap"),
+                        (when: [Pose(Fist, 30)], to: "fist_forming"),
+                        (when: [Moved(0.02)], to: "drag"),
+                        (when: [After(600)], to: "long_press"),
+                    ],
+                ),
+                "long_press": (
+                    label: "🤏 Right click",
+                    pointer: Frozen,
+                    on: [
+                        (when: [Pose(Open, 30)], to: "right_click"),
+                        (when: [Pose(Fist, 30)], to: "fist_forming"),
+                        (when: [Moved(0.02)], to: "drag"),
+                    ],
+                ),
+                "drag": (
+                    label: "🤏 Drag",
+                    holds: [Left],
+                    on: [
+                        (when: [Pose(Open, 30)], to: "dropped"),
+                        (when: [Pose(Fist, 30)], to: "dropped"),
+                    ],
+                ),
+                "tap": (enter: [Press(Left), Release(Left)]),
+                "right_click": (enter: [Press(Right), Release(Right)]),
+                // Tightening into a fist was the fist forming: no click.
+                "fist_forming": (),
+                "dropped": (),
+            },
+        ),
+        (
+            pose: Fist,
+            settle_ms: 30,
+            start: "fist",
+            states: {
+                "fist": (
+                    label: "✊ Fist",
+                    pointer: Frozen,
+                    on: [
+                        (when: [Pose(Open, 30)], to: "dropped"),
+                        (when: [Moved(0.02)], to: "window_drag"),
+                        // Held still: a drag about to start.
+                        (when: [After(600)], to: "window_drag"),
+                    ],
+                ),
+                // A fist opening reads as a pinch on its way: still the fist.
+                "window_drag": (
+                    label: "✊ Window drag",
+                    holds: [Super, Left],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
+                ),
+                "dropped": (),
+            },
+        ),
+    ],
+)

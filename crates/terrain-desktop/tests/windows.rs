@@ -45,7 +45,7 @@ fn a_pinch_tightening_into_a_fist_drags_the_window_without_clicking() {
     let inputs = Script::default()
         .hold(AHEAD, Grip::Open, 20)
         .hold(AHEAD, Grip::Pinch, 10)
-        .hold(AHEAD, Grip::Fist, 10)
+        .hold(AHEAD, Grip::Fist, 20)
         .hold(AHEAD, Grip::Open, 10)
         .run();
     assert_eq!(buttons(&inputs), one_window_drag());
@@ -55,7 +55,8 @@ fn a_pinch_tightening_into_a_fist_drags_the_window_without_clicking() {
 fn losing_the_hand_mid_window_drag_lets_go_of_both() {
     let inputs = Script::default()
         .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Fist, 10)
+        .hold(AHEAD, Grip::Fist, 3)
+        .sweep(AHEAD, AHEAD + Vec3::X * 0.08, Grip::Fist, 10)
         .gone(20)
         .run();
     assert_eq!(buttons(&inputs), one_window_drag());
@@ -73,11 +74,13 @@ fn one_window_drag() -> Vec<Input> {
 
 #[test]
 fn a_fist_opening_through_a_pinch_drops_the_window_without_clicking() {
+    let moved = AHEAD + Vec3::X * 0.08;
     let inputs = Script::default()
         .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Fist, 10)
-        .hold(AHEAD, Grip::Pinch, 4)
-        .hold(AHEAD, Grip::Open, 10)
+        .hold(AHEAD, Grip::Fist, 3)
+        .sweep(AHEAD, moved, Grip::Fist, 10)
+        .hold(moved, Grip::Pinch, 4)
+        .hold(moved, Grip::Open, 10)
         .run();
     assert_eq!(buttons(&inputs), one_window_drag());
 }
@@ -87,8 +90,18 @@ fn closing_into_a_fist_through_a_brief_pinch_doesnt_click() {
     let inputs = Script::default()
         .hold(AHEAD, Grip::Open, 20)
         .hold(AHEAD, Grip::Pinch, 2)
-        .hold(AHEAD, Grip::Fist, 10)
+        .hold(AHEAD, Grip::Fist, 20)
         .hold(AHEAD, Grip::Open, 10)
         .run();
     assert_eq!(buttons(&inputs), one_window_drag());
+}
+
+#[test]
+fn a_quick_still_fist_does_nothing() {
+    let inputs = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Fist, 8)
+        .hold(AHEAD, Grip::Open, 10)
+        .run();
+    assert_eq!(buttons(&inputs), vec![]);
 }

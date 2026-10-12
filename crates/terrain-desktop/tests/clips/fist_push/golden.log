@@ -1,0 +1,6 @@
+# A fist pushed toward the camera is just a fist: a plain window drag, never full screen.
+  3299 ms  Press(Super) at (0.69, 0.75)
+  3299 ms  Press(Left) at (0.69, 0.75)
+  6466 ms  Release(Left) at (0.84, 0.64)
+  6466 ms  Release(Super) at (0.84, 0.64)
+300 frames; pointer ranged x 0.68..0.88, y 0.62..1.00

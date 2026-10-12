@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 terrain-hands.workspace = true
+terrain-gestures.workspace = true
 glam = "0.32"
 libc = "0.2.189"
 serde_json.workspace = true

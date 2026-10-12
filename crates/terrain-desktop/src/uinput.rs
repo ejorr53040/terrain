@@ -29,6 +29,7 @@ const ABS_Y: u16 = 0x01;
 const BTN_LEFT: u16 = 0x110;
 const BTN_RIGHT: u16 = 0x111;
 const BTN_MIDDLE: u16 = 0x112;
+const KEY_F: u16 = 33;
 const KEY_LEFTMETA: u16 = 125;
 const BUS_VIRTUAL: u16 = 0x06;
 
@@ -256,6 +257,7 @@ impl VirtualDesktop {
             Button::Left => self.pointer.send(&[(EV_KEY, BTN_LEFT, value)]),
             Button::Right => self.pointer.send(&[(EV_KEY, BTN_RIGHT, value)]),
             Button::Super => self.keyboard.send(&[(EV_KEY, KEY_LEFTMETA, value)]),
+            Button::F => self.keyboard.send(&[(EV_KEY, KEY_F, value)]),
         }
     }
 }
