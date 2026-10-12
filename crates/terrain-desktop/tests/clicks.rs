@@ -89,3 +89,21 @@ fn a_pinch_held_still_right_clicks_only_once_it_opens() {
         "a long press lost with its hand never happened"
     );
 }
+
+#[test]
+fn a_pinch_right_clicks_from_six_tenths_of_a_second_still() {
+    // The pinch counts from 120 ms after it closes; frames are 33 ms apart.
+    let opened_after = |frames| {
+        buttons(
+            &Script::default()
+                .hold(AHEAD, Grip::Open, 20)
+                .hold(AHEAD, Grip::Pinch, frames)
+                .hold(AHEAD, Grip::Open, 10)
+                .run(),
+        )
+    };
+    let left = vec![Input::Press(Button::Left), Input::Release(Button::Left)];
+    let right = vec![Input::Press(Button::Right), Input::Release(Button::Right)];
+    assert_eq!(opened_after(20), left, "open after 0.66 s: a tap");
+    assert_eq!(opened_after(24), right, "open after 0.79 s: a long press");
+}

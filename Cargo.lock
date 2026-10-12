@@ -5362,6 +5362,17 @@ dependencies = [
  "libc",
  "proptest",
  "serde_json",
+ "terrain-gestures",
+ "terrain-hands",
+]
+
+[[package]]
+name = "terrain-gestures"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "ron",
+ "serde",
  "terrain-hands",
 ]
 

@@ -16,6 +16,7 @@ fn main() {
         "left" => Button::Left,
         "right" => Button::Right,
         "super" => Button::Super,
+        "f" => Button::F,
         other => panic!("unknown button {other}"),
     };
     let mut at = Vec2::splat(0.5);

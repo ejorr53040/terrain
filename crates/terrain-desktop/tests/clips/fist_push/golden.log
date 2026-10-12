@@ -1,0 +1,6 @@
+# The fist is held still ~1.8 s before the push: it must wait, not grab.
+  4599 ms  Press(Super) at (0.69, 0.75)
+  4599 ms  Press(F) at (0.69, 0.75)
+  4599 ms  Release(F) at (0.69, 0.75)
+  4599 ms  Release(Super) at (0.69, 0.75)
+300 frames; pointer ranged x 0.68..0.88, y 0.64..1.00
