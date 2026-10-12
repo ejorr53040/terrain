@@ -84,4 +84,16 @@ pub enum Guard {
     /// The palm has come more than this much nearer the camera (m) than
     /// where the gesture started.
     Pushed(f32),
+    /// The pointer has moved more than this far (screen widths) in this
+    /// direction, more along it than across, within this long (ms) of
+    /// entering the state: a flick, not a drag.
+    Flicked(Direction, f32, u64),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
 }

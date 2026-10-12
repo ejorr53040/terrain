@@ -29,7 +29,17 @@ const ABS_Y: u16 = 0x01;
 const BTN_LEFT: u16 = 0x110;
 const BTN_RIGHT: u16 = 0x111;
 const BTN_MIDDLE: u16 = 0x112;
+const KEY_LEFTCTRL: u16 = 29;
+const KEY_H: u16 = 35;
+const KEY_J: u16 = 36;
+const KEY_K: u16 = 37;
+const KEY_L: u16 = 38;
 const KEY_F: u16 = 33;
+const KEY_LEFTALT: u16 = 56;
+const KEY_UP: u16 = 103;
+const KEY_LEFT: u16 = 105;
+const KEY_RIGHT: u16 = 106;
+const KEY_DOWN: u16 = 108;
 const KEY_LEFTMETA: u16 = 125;
 const BUS_VIRTUAL: u16 = 0x06;
 
@@ -211,7 +221,8 @@ impl VirtualDesktop {
             &[ABS_X, ABS_Y],
         )?;
         // Ordinary keyboard keys too, so it's taken for a keyboard.
-        let keys: Vec<u16> = (1..=88).chain([KEY_LEFTMETA]).collect();
+        let keys: Vec<u16> = (1..=88)
+            .chain([KEY_UP, KEY_LEFT, KEY_RIGHT, KEY_DOWN, KEY_LEFTMETA]).collect();
         let keyboard = Device::create("terrain hand keys", 2, &keys, &[], &[])?;
         Ok(Self {
             pointer,
@@ -258,6 +269,16 @@ impl VirtualDesktop {
             Button::Right => self.pointer.send(&[(EV_KEY, BTN_RIGHT, value)]),
             Button::Super => self.keyboard.send(&[(EV_KEY, KEY_LEFTMETA, value)]),
             Button::F => self.keyboard.send(&[(EV_KEY, KEY_F, value)]),
+            Button::Ctrl => self.keyboard.send(&[(EV_KEY, KEY_LEFTCTRL, value)]),
+            Button::Alt => self.keyboard.send(&[(EV_KEY, KEY_LEFTALT, value)]),
+            Button::H => self.keyboard.send(&[(EV_KEY, KEY_H, value)]),
+            Button::J => self.keyboard.send(&[(EV_KEY, KEY_J, value)]),
+            Button::K => self.keyboard.send(&[(EV_KEY, KEY_K, value)]),
+            Button::L => self.keyboard.send(&[(EV_KEY, KEY_L, value)]),
+            Button::ArrowLeft => self.keyboard.send(&[(EV_KEY, KEY_LEFT, value)]),
+            Button::ArrowRight => self.keyboard.send(&[(EV_KEY, KEY_RIGHT, value)]),
+            Button::ArrowUp => self.keyboard.send(&[(EV_KEY, KEY_UP, value)]),
+            Button::ArrowDown => self.keyboard.send(&[(EV_KEY, KEY_DOWN, value)]),
         }
     }
 }

@@ -18,6 +18,10 @@ _Avoid_: Two-finger, peace sign
 A recognized pattern of poses and movement over time, such as a Tap, Drag or LongPress.
 _Avoid_: Command, motion
 
+**Flick**:
+A pinch or fist moved quickly in one direction (left, right, up, down) just after it closes, as opposed to the slower move of a Drag. Flicks send herdr's key chords.
+_Avoid_: Swipe
+
 **Engagement**:
 Whether a hand has control. A hand gains it by being raised open into the reach and loses it by being lowered. Engagement is not a gesture and can't be rebound.
 _Avoid_: Control mode, activation
