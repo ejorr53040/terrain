@@ -17,6 +17,16 @@ fn main() {
         "right" => Button::Right,
         "super" => Button::Super,
         "f" => Button::F,
+        "ctrl" => Button::Ctrl,
+        "alt" => Button::Alt,
+        "h" => Button::H,
+        "j" => Button::J,
+        "k" => Button::K,
+        "l" => Button::L,
+        "left-arrow" => Button::ArrowLeft,
+        "right-arrow" => Button::ArrowRight,
+        "up-arrow" => Button::ArrowUp,
+        "down-arrow" => Button::ArrowDown,
         other => panic!("unknown button {other}"),
     };
     let mut at = Vec2::splat(0.5);

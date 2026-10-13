@@ -6,7 +6,9 @@
 
 mod file;
 
-pub use file::{DEFAULT, Gesture, GestureFile, Guard, Pointer, Scroll, State, Transition};
+pub use file::{
+    DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, State, Transition,
+};
 
 use glam::Vec2;
 use serde::Deserialize;
@@ -58,6 +60,18 @@ pub enum Button {
     Super,
     /// The F key: with Super, the window manager's full screen.
     F,
+    /// The keys of herdr's chords: Ctrl + Alt + h/j/k/l moves the focus
+    /// between panes, Alt + arrows steps through tabs and workspaces.
+    Ctrl,
+    Alt,
+    H,
+    J,
+    K,
+    L,
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
+    ArrowDown,
 }
 
 /// A tracked hand, as the engine sees it.
@@ -273,7 +287,17 @@ impl Engine {
         match guard {
             Guard::Pose(pose, ms) => self.pose.0 == pose && t_ms.saturating_sub(self.pose.1) >= ms,
             Guard::After(ms) => t_ms.saturating_sub(active.entered_ms) >= ms,
-            Guard::Moved(by) => to_screen(hand.in_view).distance(active.at) > by,
+            Guard::Moved(by) => moved(active, hand).length() > by,
+            Guard::Flicked(direction, by, ms) => {
+                let moved = moved(active, hand);
+                let (along, across) = match direction {
+                    Direction::Left => (-moved.x, moved.y),
+                    Direction::Right => (moved.x, moved.y),
+                    Direction::Up => (-moved.y, moved.x),
+                    Direction::Down => (moved.y, moved.x),
+                };
+                t_ms.saturating_sub(active.entered_ms) <= ms && along > by && along > across.abs()
+            }
         }
     }
 
@@ -330,6 +354,12 @@ impl Engine {
             None => Control::Free,
         };
     }
+}
+
+/// How far the pointer has moved since the gesture started (screen
+/// widths, x right, y down).
+fn moved(active: &Active, hand: &Hand) -> Vec2 {
+    to_screen(hand.in_view) - active.at
 }
 
 fn in_reach(in_view: Vec2) -> bool {

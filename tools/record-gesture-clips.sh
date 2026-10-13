@@ -197,7 +197,7 @@ OUT=$ROOT/crates/terrain-desktop/tests/clips
 CAMERA=/dev/video0
 SECONDS_PER_CLIP=10
 
-TOTAL_STAGES=12
+TOTAL_STAGES=14
 
 # camera_free waits until no other program holds the camera.
 camera_free() {
@@ -419,6 +419,28 @@ t 7    $LOWER" \
 - one window drag (Super + Left); a push isn't full screen
 - no Super + F, no left or right click
 - control let go after the hand is lowered"
+
+clip fist_flicks "Fist flicks (herdr panes)" \
+"Before recording: focus a herdr terminal split into panes.
+$RAISE
+t 4    close the hand into a fist, flick it quickly ~10 cm left, open it
+t 5.5  fist, flick right, open
+t 7    fist, flick up, open
+t 8.5  fist, flick down, open" \
+"- the hand takes control
+- four pane moves, in order: Ctrl+Alt+H, Ctrl+Alt+L, Ctrl+Alt+K, Ctrl+Alt+J
+- no window drag (Super + Left), no left or right click"
+
+clip pinch_flicks "Pinch flicks (herdr tabs, workspaces)" \
+"Before recording: focus a herdr terminal with a few tabs.
+$RAISE
+t 4    pinch, flick it quickly ~10 cm left, open
+t 5.5  pinch, flick right, open
+t 7    pinch, flick up, open
+t 8.5  pinch, flick down, open" \
+"- the hand takes control
+- four steps, in order: Alt+Left, Alt+Right, Alt+Up, Alt+Down
+- no left click, no drag, no right click"
 
 finish
 note "Clips are in ${OUT#"$ROOT"/} (frames.json, golden.log, intent.md each)."
