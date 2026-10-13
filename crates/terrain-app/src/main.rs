@@ -11,8 +11,8 @@ use std::path::PathBuf;
 
 use bevy::prelude::*;
 use terrain_app::{
-    CUBE_STARTS, DEFAULT_CAMERA, GrabPlugin, Grabbable, PreviewPlugin, SCENE_CAMERA_AT,
-    load_camera, start_tracking,
+    BOX_MAX, BOX_MIN, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
+    PreviewPlugin, SCENE_CAMERA_AT, load_camera, start_tracking,
 };
 use terrain_hands::{HandSource, ReplaySource};
 
@@ -60,9 +60,18 @@ fn main() -> AppExit {
             ..default()
         }))
         .add_plugins(grab)
-        .add_plugins(PreviewPlugin::new(tracking))
+        .add_plugins((CursorPlugin, PreviewPlugin::new(tracking)))
         .add_systems(Startup, spawn_scene)
+        .add_systems(Update, draw_box)
         .run()
+}
+
+/// The walls the cubes live in, as an outline.
+fn draw_box(mut gizmos: Gizmos) {
+    gizmos.cube(
+        Transform::from_translation((BOX_MIN + BOX_MAX) / 2.0).with_scale(BOX_MAX - BOX_MIN),
+        Color::srgba(0.7, 0.85, 1.0, 0.6),
+    );
 }
 
 fn spawn_scene(
