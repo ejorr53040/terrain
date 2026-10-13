@@ -1,5 +1,5 @@
-//! Builds synthetic `HandFrame`s: a canonical hand, open, pinching or in a
-//! fist, placed in front of the default camera in meters.
+//! Builds synthetic `HandFrame`s: a canonical hand, open, pinching, in a
+//! fist or a Vee, placed in front of the default camera in meters.
 
 #![allow(dead_code)]
 
@@ -44,6 +44,9 @@ pub enum Grip {
     Pinch,
     /// Every finger folded into the palm, the thumb across them.
     Fist,
+    /// Index and middle fingers straight, ring and little finger folded,
+    /// the thumb holding them down.
+    Vee,
 }
 
 /// The hand `grip` makes, in the hand's own frame.
@@ -53,17 +56,26 @@ fn shape(grip: Grip) -> [Vec3; 21] {
         Grip::Open => {}
         Grip::Pinch => p[4] = p[8] + Vec3::new(-0.01, 0.0, 0.0),
         Grip::Fist => {
-            // Each finger's three joints fold down in front of its knuckle.
-            for mcp in [5, 9, 13, 17] {
-                for (k, fold) in [(1, 0.015), (2, 0.025), (3, 0.03)] {
-                    p[mcp + k] = p[mcp] + Vec3::new(0.0, -fold * 0.6, -fold);
-                }
-            }
+            fold(&mut p, &[5, 9, 13, 17]);
             // The thumb lies across the folded fingers, near the index.
             p[4] = p[8] + Vec3::new(0.0, 0.0, -0.02);
         }
+        Grip::Vee => {
+            fold(&mut p, &[13, 17]);
+            p[4] = p[13] + Vec3::new(0.0, -0.01, -0.02);
+        }
     }
     p
+}
+
+/// Folds the fingers with these knuckles: each finger's three joints fold
+/// down in front of its knuckle.
+fn fold(p: &mut [Vec3; 21], knuckles: &[usize]) {
+    for &mcp in knuckles {
+        for (k, by) in [(1, 0.015), (2, 0.025), (3, 0.03)] {
+            p[mcp + k] = p[mcp] + Vec3::new(0.0, -by * 0.6, -by);
+        }
+    }
 }
 
 /// A right hand making `grip` with its palm `at` (meters, camera space:

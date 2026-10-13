@@ -1,2 +1,4 @@
-# PENDING Vee scrolling (#22): today a Vee reads as an open hand and only points; see intent.md
-300 frames; pointer ranged x 0.63..0.68, y 0.30..1.00
+# Vee up at t 4: scrolls up while held above where it began (#22)
+  3666–3899 ms  Scroll(0.0, 0.3)
+  3999–6166 ms  Scroll(0.0, -28.6)
+300 frames; pointer ranged x 0.63..0.67, y 0.76..1.00

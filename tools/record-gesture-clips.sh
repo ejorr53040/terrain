@@ -334,21 +334,21 @@ t 5–7  hold it there (2 s)
 t 7–8  bring it back to where the Vee began, then open the hand
 t 8    $LOWER" \
 "- the hand takes control
-- PENDING until Vee exists (#22): scrolls up while the Vee is above where
-  it began, faster the further up; stops when it returns; the pointer stays
-  frozen; no buttons
+- scrolls up while the Vee is above where it began, faster the further up;
+  stops when it returns; the pointer stays frozen; no buttons
 - control let go after the hand is lowered"
 
 clip vee_down "Vee scroll down" \
 "$RAISE
 t 4    make a Vee: index and middle fingers up, the others curled
-t 4–5  move the Vee down about 10 cm
+t 4–5  move the Vee down about 10 cm (keep the hand in the camera's view;
+       curl the ring and little fingers right in)
 t 5–7  hold it there (2 s)
 t 7–8  bring it back to where the Vee began, then open the hand
 t 8    $LOWER" \
 "- the hand takes control
-- PENDING until Vee exists (#22): scrolls down while the Vee is below where
-  it began; stops when it returns; the pointer stays frozen; no buttons
+- scrolls down while the Vee is below where it began; stops when it
+  returns; the pointer stays frozen; no buttons
 - control let go after the hand is lowered"
 
 clip vee_sideways "Vee scroll sideways" \
@@ -359,8 +359,8 @@ t 5–7  move it about 10 cm left of where it began and hold it there
 t 7–8  bring it back to where the Vee began, then open the hand
 t 8    $LOWER" \
 "- the hand takes control
-- PENDING until Vee exists (#22): scrolls right, then left; stops when it
-  returns; the pointer stays frozen; no buttons
+- scrolls right, then left; stops when it returns; the pointer stays
+  frozen; no buttons
 - control let go after the hand is lowered"
 
 clip fist_drag "Fist window drag" \

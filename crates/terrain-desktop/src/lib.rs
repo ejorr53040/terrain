@@ -1,7 +1,7 @@
 //! Drives the real desktop with a hand, through the gesture engine: the
 //! palm points; a pinch works like a finger on a touchscreen (a tap clicks,
 //! moving drags, holding still and letting go right-clicks); a fist drags
-//! the window under the pointer. What each gesture does is the built-in
+//! the window under the pointer; a Vee scrolls. What each gesture does is the built-in
 //! gesture file's (`terrain-gestures`).
 //!
 //! A hand takes control only once it's held open in the reach for a
@@ -15,18 +15,11 @@ use terrain_gestures::{Engine, GestureFile, Hand, Pose};
 use terrain_hands::{CameraModel, HandFrame, HandState, HandStateEstimator};
 pub use uinput::VirtualDesktop;
 
-/// Wheel steps scrolled per view width (or height) the other hand moves:
-/// about fifteen across the reach.
-const SCROLL_STEPS: f32 = 25.0;
-
 /// Turns tracked hands into desktop input.
 pub struct DesktopControl {
     estimator: HandStateEstimator,
     camera: CameraModel,
     engine: Engine,
-    /// The other hand, while it pinches to scroll, and where in the view
-    /// it was last.
-    scrolling: Option<(u32, Vec2)>,
 }
 
 impl DesktopControl {
@@ -35,7 +28,6 @@ impl DesktopControl {
             estimator: HandStateEstimator::new(camera),
             camera,
             engine: Engine::new(GestureFile::default_gestures()),
-            scrolling: None,
         }
     }
 
@@ -46,10 +38,7 @@ impl DesktopControl {
 
     /// What the hands are doing now.
     pub fn status(&self) -> Status {
-        match self.engine.status() {
-            Status::Pointing if self.scrolling.is_some() => Status::Gesture("↕ Scroll".into()),
-            status => status,
-        }
+        self.engine.status()
     }
 
     /// The input `frame` calls for.
@@ -64,42 +53,13 @@ impl DesktopControl {
                 in_view: self.in_view(h),
             })
             .collect();
-        let mut inputs = self.engine.update(&hands, frame.t_ms);
-        let Some(id) = self.engine.controlling() else {
-            self.scrolling = None;
-            return inputs;
-        };
-        if tracked.hands.iter().any(|h| h.id == id) {
-            let other = tracked.hands.iter().find(|h| h.id != id);
-            inputs.extend(self.scroll(other));
-        }
-        inputs
+        self.engine.update(&hands, frame.t_ms)
     }
 
     /// Lets go of everything and gives up control: for when hands stop
     /// arriving at all.
     pub fn let_go(&mut self) -> Vec<Input> {
-        self.scrolling = None;
         self.engine.let_go()
-    }
-
-    /// Scrolling by `other`, the hand without control: pinching, it pulls
-    /// the page along with it.
-    // ponytail: hand-written, not in the gesture file; the one-hand Vee
-    // scroll replaces it (#22).
-    fn scroll(&mut self, other: Option<&HandState>) -> Option<Input> {
-        let Some(hand) = other.filter(|h| h.pinching && !h.fist) else {
-            self.scrolling = None;
-            return None;
-        };
-        let at = self.in_view(hand);
-        let last = match self.scrolling.replace((hand.id, at)) {
-            Some((id, last)) if id == hand.id => last,
-            _ => return None,
-        };
-        let by = (last - at) * SCROLL_STEPS;
-        // Smoothing settling leaves the odd hair of motion: not a scroll.
-        (by.abs().max_element() > 0.01).then_some(Input::Scroll(by))
     }
 
     /// Where `hand`'s palm is in the camera's view, by its direction from
@@ -113,15 +73,35 @@ impl DesktopControl {
 }
 
 /// What `DesktopControl` does over `frames`, as a log: each press and
-/// release with its time and where the pointer was, then how far the
-/// pointer ranged. The desktop isn't touched.
+/// release with its time and where the pointer was, each stretch of
+/// scrolling with how far it went, then how far the pointer ranged. The
+/// desktop isn't touched.
 pub fn dry_run(frames: &[HandFrame]) -> String {
     let mut control = DesktopControl::new(CameraModel::default());
     let (mut lo, mut hi) = (Vec2::ONE, Vec2::ZERO);
     let mut at = Vec2::ZERO;
     let mut log = String::new();
+    // Scrolling under way: from when, until when, and how far so far.
+    let mut scroll: Option<(u64, u64, Vec2)> = None;
+    let scrolled = |(from, to, by): (u64, u64, Vec2)| {
+        format!("{from:>6}–{to} ms  Scroll({:.1}, {:.1})\n", by.x, by.y)
+    };
     for frame in frames {
-        for input in control.update(frame) {
+        let inputs = control.update(frame);
+        let by: Vec2 = inputs
+            .iter()
+            .filter_map(|i| match i {
+                Input::Scroll(by) => Some(*by),
+                _ => None,
+            })
+            .sum();
+        if by != Vec2::ZERO {
+            let (from, _, sum) = scroll.unwrap_or((frame.t_ms, 0, Vec2::ZERO));
+            scroll = Some((from, frame.t_ms, sum + by));
+        } else if let Some(run) = scroll.take() {
+            log += &scrolled(run);
+        }
+        for input in inputs {
             match input {
                 Input::PointTo(p) => {
                     lo = lo.min(p);
@@ -137,6 +117,9 @@ pub fn dry_run(frames: &[HandFrame]) -> String {
                 }
             }
         }
+    }
+    if let Some(run) = scroll {
+        log += &scrolled(run);
     }
     log += &format!(
         "{} frames; pointer ranged x {:.2}..{:.2}, y {:.2}..{:.2}\n",

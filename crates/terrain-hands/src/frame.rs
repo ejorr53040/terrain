@@ -72,13 +72,15 @@ impl Hand {
     /// wrist over its knuckle's. About 1.8 for a straight finger, under 1
     /// for one folded into the palm, so under about 1.1 means a fist.
     pub fn finger_reach(&self) -> f32 {
+        self.finger_reaches().into_iter().fold(0.0, f32::max)
+    }
+
+    /// Each finger's reach (see `finger_reach`): index, middle, ring, little.
+    pub fn finger_reaches(&self) -> [f32; 4] {
         let wrist = self.world[landmark::WRIST];
-        landmark::FINGERS
-            .iter()
-            .map(|&(knuckle, tip)| {
-                self.world[tip].distance(wrist) / self.world[knuckle].distance(wrist).max(1e-6)
-            })
-            .fold(0.0, f32::max)
+        landmark::FINGERS.map(|(knuckle, tip)| {
+            self.world[tip].distance(wrist) / self.world[knuckle].distance(wrist).max(1e-6)
+        })
     }
 
     /// World landmark `i` in camera axes: meters, x right, y up, z away from the camera.

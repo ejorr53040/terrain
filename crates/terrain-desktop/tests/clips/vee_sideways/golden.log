@@ -1,2 +1,5 @@
-# PENDING Vee scrolling (#22): today a Vee reads as an open hand and only points; see intent.md
-300 frames; pointer ranged x 0.47..0.97, y 0.71..1.00
+# Vee right then left (#22): the leftward hold drifts down past the dead zone, so it also scrolls down
+  2766–4433 ms  Scroll(11.5, 0.0)
+  4599–6233 ms  Scroll(-8.2, 6.9)
+  6366–6833 ms  Scroll(0.4, 0.0)
+300 frames; pointer ranged x 0.70..0.83, y 0.74..1.00

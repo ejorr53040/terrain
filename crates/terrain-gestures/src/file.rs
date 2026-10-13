@@ -5,6 +5,7 @@
 
 use std::collections::BTreeMap;
 
+use glam::Vec2;
 use serde::Deserialize;
 
 use crate::{Action, Button, Pose};
@@ -50,9 +51,31 @@ pub struct State {
     pub holds: Vec<Button>,
     /// Actions on entering, after any holds are pressed.
     pub enter: Vec<Action>,
+    /// Scrolling every frame while in this state.
+    pub scroll: Option<Scroll>,
     /// Ways out, the first that's enabled taken. A state with none ends
     /// the gesture as soon as it's entered.
     pub on: Vec<Transition>,
+}
+
+/// Rate scrolling: the further the hand is from where the gesture started,
+/// the faster the page scrolls that way.
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub struct Scroll {
+    /// How far the hand can stray on each axis (screen widths) without
+    /// scrolling.
+    pub dead_zone: f32,
+    /// Wheel steps a second for each screen width past the dead zone.
+    pub rate: f32,
+}
+
+impl Scroll {
+    /// The wheel steps for `dt_ms` with the hand `offset` from where the
+    /// gesture started: y down the page, x to the right.
+    pub fn by(&self, offset: Vec2, dt_ms: u64) -> Vec2 {
+        let past = (offset.abs() - self.dead_zone).max(Vec2::ZERO) * offset.signum();
+        past * self.rate * dt_ms as f32 / 1000.0
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]

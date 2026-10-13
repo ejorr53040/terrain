@@ -1,7 +1,8 @@
 // The built-in gestures. A pinch works like a finger on a touchscreen: a
 // tap clicks where it closed, moving drags, holding still then letting go
 // right-clicks. A fist that moves or holds still drags the window under the
-// pointer (Super + left button, the window manager's window drag).
+// pointer (Super + left button, the window manager's window drag). A Vee
+// scrolls, faster the further the hand moves from where the Vee began.
 (
     gestures: [
         (
@@ -67,6 +68,24 @@
                     on: [(when: [Pose(Open, 30)], to: "dropped")],
                 ),
                 "dropped": (),
+            },
+        ),
+        (
+            pose: Vee,
+            settle_ms: 100,
+            start: "scroll",
+            states: {
+                "scroll": (
+                    label: "✌ Scroll",
+                    pointer: Frozen,
+                    scroll: Some((dead_zone: 0.05, rate: 40.0)),
+                    on: [
+                        (when: [Pose(Open, 60)], to: "done"),
+                        (when: [Pose(Pinch, 60)], to: "done"),
+                        (when: [Pose(Fist, 60)], to: "done"),
+                    ],
+                ),
+                "done": (),
             },
         ),
     ],

@@ -6,7 +6,7 @@
 
 mod file;
 
-pub use file::{DEFAULT, Gesture, GestureFile, Guard, Pointer, State, Transition};
+pub use file::{DEFAULT, Gesture, GestureFile, Guard, Pointer, Scroll, State, Transition};
 
 use glam::Vec2;
 use serde::Deserialize;
@@ -18,6 +18,8 @@ pub enum Pose {
     Open,
     Pinch,
     Fist,
+    /// Index and middle fingers up, the others curled.
+    Vee,
 }
 
 impl Pose {
@@ -28,6 +30,8 @@ impl Pose {
             Pose::Fist
         } else if hand.pinching {
             Pose::Pinch
+        } else if hand.vee {
+            Pose::Vee
         } else {
             Pose::Open
         }
@@ -176,6 +180,7 @@ impl Engine {
             }
             return Vec::new();
         };
+        let dt_ms = t_ms.saturating_sub(self.last_seen_ms);
         self.last_seen_ms = t_ms;
         let in_reach = in_reach(hand.in_view);
         if hand.pose == Pose::Open && self.active.is_none() && !in_reach {
@@ -198,6 +203,14 @@ impl Engine {
         }
         let point = to_screen(hand.in_view);
         let mut actions = self.step(hand, point, t_ms);
+        if let Some(a) = &self.active
+            && let Some(scroll) = a.state.scroll
+        {
+            let by = scroll.by(point - a.at, dt_ms);
+            if by != Vec2::ZERO {
+                actions.push(Action::Scroll(by));
+            }
+        }
         let pointer = match &self.active {
             Some(a) if a.state.pointer == Pointer::Frozen => a.at,
             _ => point,
