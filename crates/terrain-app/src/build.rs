@@ -4,7 +4,7 @@
 
 use bevy::{ecs::entity_disabling::Disabled, prelude::*, window::PrimaryWindow};
 
-use crate::{Arena, Grab, Grabbable, HandCursor, SceneCamera, Screen};
+use crate::{Arena, Grab, Grabbable, HandCursor, SceneCamera, Screen, Shape};
 
 /// The shape edits act on: the one under a cursor, else the one grabbed last.
 #[derive(Resource, Default, Debug)]
@@ -31,7 +31,7 @@ pub(crate) fn select(
     grab: Res<Grab>,
     hands: Query<&HandCursor>,
     window: Query<&Window, With<PrimaryWindow>>,
-    shapes: Query<(Entity, &Transform), With<Grabbable>>,
+    shapes: Query<(Entity, &Transform, &Shape), With<Grabbable>>,
     scene_camera: SceneCamera,
 ) {
     let hovered = Screen::of(&scene_camera).and_then(|screen| {
@@ -39,13 +39,13 @@ pub(crate) fn select(
         let camera = scene_camera.single().ok()?.0.translation;
         shapes
             .iter()
-            .filter(|(_, t)| cursors.iter().any(|&c| screen.covers(t, c)))
-            .min_by(|(_, a), (_, b)| {
+            .filter(|(_, t, shape)| cursors.iter().any(|&c| screen.covers(t, shape, c)))
+            .min_by(|(_, a, _), (_, b, _)| {
                 a.translation
                     .distance(camera)
                     .total_cmp(&b.translation.distance(camera))
             })
-            .map(|(entity, _)| entity)
+            .map(|(entity, ..)| entity)
     });
     selection.0 = hovered.or(grab.last.filter(|&e| shapes.contains(e)));
 }
@@ -92,6 +92,7 @@ pub(crate) fn edit(
         (
             Entity,
             &Transform,
+            &Shape,
             Has<Placed>,
             Option<&Mesh3d>,
             Option<&MeshMaterial3d<StandardMaterial>>,
@@ -116,7 +117,7 @@ pub(crate) fn edit(
             commands.spawn((Grabbable, Placed, Transform::from_translation(at)));
         }
     }
-    let Some((entity, transform, placed, mesh, material)) =
+    let Some((entity, transform, shape, placed, mesh, material)) =
         selection.0.and_then(|e| shapes.get(e).ok())
     else {
         return;
@@ -135,6 +136,7 @@ pub(crate) fn edit(
             let mut copy = commands.spawn((
                 Grabbable,
                 Placed,
+                *shape,
                 Transform {
                     translation: at,
                     ..*transform

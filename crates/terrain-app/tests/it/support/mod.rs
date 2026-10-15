@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use bevy::{prelude::*, time::TimeUpdateStrategy};
-use terrain_app::{GrabPlugin, Grabbable, SCENE_CAMERA_AT};
+use terrain_app::{GrabPlugin, Grabbable, SCENE_CAMERA_AT, Shape};
 use terrain_hands::{CameraModel, Hand, HandFrame, HandSource, Handedness, ReplaySource, landmark};
 
 /// Time between camera frames, and between app updates, in tests.
@@ -303,6 +303,11 @@ impl Harness {
 
     pub fn cube(&self) -> Transform {
         *self.app.world().get::<Transform>(self.cube).unwrap()
+    }
+
+    /// The first cube's shape.
+    pub fn shape(&self) -> Shape {
+        *self.app.world().get::<Shape>(self.cube).unwrap()
     }
 }
 

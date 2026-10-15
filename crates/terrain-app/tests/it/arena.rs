@@ -1,4 +1,5 @@
-use bevy::prelude::*;
+use avian3d::prelude::*;
+use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use crate::support::*;
 use terrain_app::{Arena, CUBE_SIZE};
 
@@ -59,7 +60,7 @@ fn a_shallow_arena_stops_a_stretch_short_of_its_depth() {
     h.run(1);
     h.app.world_mut().resource_mut::<Arena>().min.z = -0.2;
     h.run_all();
-    let depth = h.cube().scale.z * CUBE_SIZE;
+    let depth = h.shape().size.z;
     let arena = h.app.world().resource::<Arena>();
     assert!(
         depth < arena.max.z - arena.min.z,
@@ -67,4 +68,31 @@ fn a_shallow_arena_stops_a_stretch_short_of_its_depth() {
         arena.max.z - arena.min.z
     );
     assert!(depth > 0.3, "stretch stopped early, at {depth} m");
+}
+
+#[test]
+fn a_stretched_shape_is_solid_all_along_its_new_length() {
+    let first = Vec3::new(-0.06, 0.0, 0.5);
+    let second = Vec3::new(0.02, 0.0, 0.5);
+    let mut h = Harness::with_cubes(
+        [
+            hold(&[Pose::pinched(first)], SETTLE),
+            hold(&[Pose::pinched(first), Pose::open(second)], SETTLE),
+            hold(&[Pose::pinched(first), Pose::pinched(second)], SETTLE),
+            hold(&[Pose::pinched(first - Vec3::X * 0.04), Pose::pinched(second + Vec3::X * 0.04)], SETTLE),
+        ]
+        .concat(),
+        &[Vec3::ZERO],
+    );
+    h.run_all();
+    // Twice as wide: 30 cm, so solid 12 cm out from the middle.
+    let solid = h
+        .app
+        .world_mut()
+        .run_system_once(|q: SpatialQuery| {
+            q.point_intersections(Vec3::new(0.12, 0.0, 0.0), &SpatialQueryFilter::default())
+                .len()
+        })
+        .unwrap();
+    assert!(solid > 0, "the stretched end isn't solid; size {}", h.shape().size);
 }

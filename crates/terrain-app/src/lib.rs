@@ -85,7 +85,26 @@ pub const DEMO_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/de
 
 /// An entity hands can pick up and move.
 #[derive(Component)]
+#[require(Shape)]
 pub struct Grabbable;
+
+/// What a grabbable is: a primitive given by parameters, not a mesh. Its
+/// collider (and, in the app, its mesh) is rebuilt from them when they
+/// change; its `Transform` scale stays 1.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct Shape {
+    /// Width, height and depth, in meters.
+    pub size: Vec3,
+}
+
+impl Default for Shape {
+    /// A cube one grid cell across.
+    fn default() -> Self {
+        Self {
+            size: Vec3::splat(CUBE_SIZE),
+        }
+    }
+}
 
 /// Marks where a tracked hand is on screen, one entity per hand.
 #[derive(Component, Clone, Copy, Debug)]
@@ -97,9 +116,9 @@ pub struct HandCursor {
     pub pinching: bool,
 }
 
-/// Where a `Grabbable` started, for `R` to put it back.
+/// Where a `Grabbable` started and its shape then, for `R` to put it back.
 #[derive(Component)]
-struct Start(Transform);
+struct Start(Transform, Shape);
 
 /// Reads hands from a `HandSource` and lets a pinch grab, move and release
 /// `Grabbable` entities.
@@ -166,6 +185,7 @@ impl Plugin for GrabPlugin {
                 read_hands,
                 calibration::calibrate,
                 remember_start,
+                fit_colliders,
                 reset,
                 sync_cursors,
                 drive_grab,
@@ -202,6 +222,9 @@ struct Held {
     hand: HandState,
     transform: Transform,
     target: Transform,
+    /// The entity's size when the pinch began, and the size hands now want.
+    size: Vec3,
+    target_size: Vec3,
     /// How far the entity moves per meter the hand moves, along each axis.
     gain: Vec3,
     /// Capture time of the last frame the holding hand was seen in.
@@ -222,15 +245,15 @@ struct Second {
     last_seen_ms: u64,
 }
 
-/// The smallest a stretched entity can be, as a multiple of its unstretched
-/// size. The largest is set by the Arena.
-const STRETCH_MIN: f32 = 0.2;
+/// The shortest a stretch makes a side, in meters. The longest is set by the Arena.
+const STRETCH_MIN: f32 = 0.03;
 
 impl Held {
     /// Carries on from where the entity is now, measuring `hand`'s motion from here.
     fn reclutch(&mut self, hand: &HandState) {
         self.hand = *hand;
         self.transform = self.target;
+        self.size = self.target_size;
     }
 }
 
@@ -267,14 +290,25 @@ fn build_walls(mut commands: Commands, arena: Res<Arena>, walls: Query<Entity, W
     }
 }
 
-/// Gives each new `Grabbable` a place to reset to and a solid cube body.
-fn remember_start(mut commands: Commands, new: Query<(Entity, &Transform), Added<Grabbable>>) {
-    for (entity, transform) in &new {
-        commands.entity(entity).insert((
-            Start(*transform),
-            RigidBody::Dynamic,
-            Collider::cuboid(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE),
-        ));
+/// Gives each new `Grabbable` a place to reset to and a solid body.
+fn remember_start(
+    mut commands: Commands,
+    new: Query<(Entity, &Transform, &Shape), Added<Grabbable>>,
+) {
+    for (entity, transform, shape) in &new {
+        commands
+            .entity(entity)
+            .insert((Start(*transform, *shape), RigidBody::Dynamic));
+    }
+}
+
+/// Fits each shape's collider to its parameters when they change.
+// ponytail: rebuilt every change, i.e. every frame of a stretch; throttle if that shows up in a profile.
+fn fit_colliders(mut commands: Commands, shapes: Query<(Entity, &Shape), Changed<Shape>>) {
+    for (entity, shape) in &shapes {
+        commands
+            .entity(entity)
+            .insert(Collider::cuboid(shape.size.x, shape.size.y, shape.size.z));
     }
 }
 
@@ -318,18 +352,26 @@ fn reset(
     keys: Res<ButtonInput<KeyCode>>,
     mut calibration: ResMut<Calibration>,
     mut grab: ResMut<Grab>,
-    mut grabbables: Query<(Entity, &mut Transform, &Start, Has<Placed>, Has<Disabled>)>,
+    mut grabbables: Query<(
+        Entity,
+        &mut Transform,
+        &mut Shape,
+        &Start,
+        Has<Placed>,
+        Has<Disabled>,
+    )>,
 ) {
     let calibrated = std::mem::take(&mut calibration.reset_scene);
     if keys.just_pressed(KeyCode::KeyR) || calibrated {
         grab.held.clear();
         grab.last = None;
-        for (entity, mut transform, start, placed, deleted) in &mut grabbables {
+        for (entity, mut transform, mut shape, start, placed, deleted) in &mut grabbables {
             if placed {
                 commands.entity(entity).despawn();
                 continue;
             }
             *transform = start.0;
+            *shape = start.1;
             if deleted {
                 commands.entity(entity).remove::<Disabled>();
             }
@@ -411,8 +453,8 @@ impl Screen {
         Vec2::new(2.0 * in_view.x - 1.0, 1.0 - 2.0 * in_view.y) * Vec2::new(self.aspect, 1.0)
     }
 
-    /// Whether `in_view` is on a cube-shaped entity's outline on screen.
-    pub(crate) fn covers(&self, t: &Transform, in_view: Vec2) -> bool {
+    /// Whether `in_view` is on a shape's outline on screen.
+    pub(crate) fn covers(&self, t: &Transform, shape: &Shape, in_view: Vec2) -> bool {
         // ponytail: the outline is the corners' bounding rectangle, a little
         // generous on a turned cube; use their convex hull if that misfires.
         let corners = (0..8).filter_map(|i| {
@@ -421,7 +463,7 @@ impl Screen {
                 if i & 2 == 0 { -0.5 } else { 0.5 },
                 if i & 4 == 0 { -0.5 } else { 0.5 },
             );
-            self.project(t.transform_point(corner * CUBE_SIZE))
+            self.project(t.transform_point(corner * shape.size))
         });
         let (min, max) = corners.fold((Vec2::INFINITY, Vec2::NEG_INFINITY), |(min, max), c| {
             (min.min(c), max.max(c))
@@ -456,11 +498,10 @@ impl Screen {
 fn drive_grab(
     mut hands: ResMut<Hands>,
     mut grab: ResMut<Grab>,
-    mut grabbables: Query<(Entity, &mut Transform), With<Grabbable>>,
+    mut grabbables: Query<(Entity, &Transform, &mut Shape), With<Grabbable>>,
     scene_camera: SceneCamera,
     arena: Res<Arena>,
 ) {
-    let stretch_max = arena.longest() / CUBE_SIZE;
     let Some(frame) = hands.fresh.take() else {
         return;
     };
@@ -497,9 +538,9 @@ fn drive_grab(
                 held.target.translation = held.transform.translation
                     + held.gain * (mid(a, b) - mid(&held.hand, &second.hand));
                 held.target.rotation = held.transform.rotation;
-                held.target.scale[second.axis] = (held.transform.scale[second.axis] * gap(a, b)
+                held.target_size[second.axis] = (held.size[second.axis] * gap(a, b)
                     / gap(&held.hand, &second.hand))
-                .clamp(STRETCH_MIN, stretch_max);
+                .clamp(STRETCH_MIN, arena.longest());
                 true
             }
             // The first hand let go: the second carries on alone.
@@ -527,8 +568,10 @@ fn drive_grab(
     });
     // Only the steer moves and turns held entities, so physics can stop them; a stretch is set here.
     for held in &grab.held {
-        if let Ok((_, mut transform)) = grabbables.get_mut(held.entity) {
-            transform.scale = held.target.scale;
+        if let Ok((_, _, mut shape)) = grabbables.get_mut(held.entity)
+            && shape.size != held.target_size
+        {
+            shape.size = held.target_size;
         }
     }
     let screen = Screen::of(&scene_camera);
@@ -544,7 +587,7 @@ fn drive_grab(
                 held.second.is_none()
                     && grabbables
                         .get(held.entity)
-                        .is_ok_and(|(_, t)| screen.covers(t, hand.in_image))
+                        .is_ok_and(|(_, t, shape)| screen.covers(t, shape, hand.in_image))
             })
         });
         if let Some(held) = joined {
@@ -565,19 +608,23 @@ fn drive_grab(
         }
         let free = grabbables
             .iter()
-            .filter(|(entity, _)| grab.held.iter().all(|held| held.entity != *entity));
+            .filter(|(entity, ..)| grab.held.iter().all(|held| held.entity != *entity));
         let nearest = match &screen {
             Some(screen) => free
-                .filter_map(|(entity, t)| Some((entity, t, screen.project(t.translation)?)))
+                .filter_map(|(entity, t, shape)| {
+                    Some((entity, (t, shape), screen.project(t.translation)?))
+                })
                 .min_by(|(_, _, a), (_, _, b)| {
                     let pointing = screen.pointing(hand.in_image);
                     a.distance(pointing).total_cmp(&b.distance(pointing))
                 })
                 .map(|(entity, t, _)| (entity, t)),
             // No scene camera, so no screen to be near on: any free one.
-            None => free.min_by_key(|(entity, _)| *entity),
+            None => free
+                .map(|(entity, t, shape)| (entity, (t, shape)))
+                .min_by_key(|(entity, _)| *entity),
         };
-        if let Some((entity, transform)) = nearest {
+        if let Some((entity, (transform, shape))) = nearest {
             // The view each camera has, at the hand's and the entity's depth,
             // so a move fills the same share of the screen as the cursor's.
             let gain = match scene_camera.single() {
@@ -600,6 +647,8 @@ fn drive_grab(
                 hand: *hand,
                 transform: *transform,
                 target: *transform,
+                size: shape.size,
+                target_size: shape.size,
                 gain,
                 last_seen_ms: frame.t_ms,
                 second: None,

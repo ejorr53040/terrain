@@ -13,8 +13,8 @@ use std::path::PathBuf;
 
 use bevy::prelude::*;
 use terrain_app::{
-    Arena, CUBE_SIZE, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
-    PreviewPlugin, SCENE_CAMERA_AT, Selection, load_camera, start_tracking,
+    Arena, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
+    PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, load_camera, start_tracking,
 };
 use terrain_hands::{HandSource, ReplaySource};
 
@@ -64,7 +64,7 @@ fn main() -> AppExit {
         .add_plugins(grab)
         .add_plugins((CursorPlugin, PreviewPlugin::new(tracking)))
         .add_systems(Startup, spawn_scene)
-        .add_systems(Update, (draw_box, dress_new_shapes, outline_selection))
+        .add_systems(Update, (draw_box, dress_new_shapes, mesh_shapes, outline_selection))
         .run()
 }
 
@@ -85,20 +85,31 @@ const COLORS: [Color; 5] = [
     Color::srgb(0.95, 0.85, 0.35),
 ];
 
-/// Gives each new box (from `N`) a cube to draw and the next colour.
+/// Gives each new box (from `N`) the next colour.
 fn dress_new_shapes(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    new: Query<Entity, (Added<Grabbable>, Without<Mesh3d>)>,
+    new: Query<Entity, (Added<Grabbable>, Without<MeshMaterial3d<StandardMaterial>>)>,
     mut made: Local<usize>,
 ) {
     for entity in &new {
-        commands.entity(entity).insert((
-            Mesh3d(meshes.add(Cuboid::from_length(CUBE_SIZE))),
-            MeshMaterial3d(materials.add(COLORS[*made % COLORS.len()])),
-        ));
+        commands
+            .entity(entity)
+            .insert(MeshMaterial3d(materials.add(COLORS[*made % COLORS.len()])));
         *made += 1;
+    }
+}
+
+/// Draws each shape from its parameters, again whenever they change.
+fn mesh_shapes(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    shapes: Query<(Entity, &Shape), Changed<Shape>>,
+) {
+    for (entity, shape) in &shapes {
+        commands
+            .entity(entity)
+            .insert(Mesh3d(meshes.add(Cuboid::from_size(shape.size))));
     }
 }
 
@@ -106,19 +117,15 @@ fn dress_new_shapes(
 fn outline_selection(
     mut gizmos: Gizmos,
     selection: Res<Selection>,
-    shapes: Query<&Transform, With<Grabbable>>,
+    shapes: Query<(&Transform, &Shape)>,
 ) {
-    if let Some(t) = selection.0.and_then(|e| shapes.get(e).ok()) {
-        gizmos.cube(
-            t.with_scale(t.scale * CUBE_SIZE * 1.12),
-            Color::WHITE,
-        );
+    if let Some((t, shape)) = selection.0.and_then(|e| shapes.get(e).ok()) {
+        gizmos.cube(t.with_scale(shape.size + 0.02), Color::WHITE);
     }
 }
 
 fn spawn_scene(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.spawn((
@@ -132,11 +139,9 @@ fn spawn_scene(
         },
         Transform::from_xyz(1.0, 2.0, 1.5).looking_at(Vec3::ZERO, Vec3::Y),
     ));
-    let cube = meshes.add(Cuboid::from_length(0.15));
     // A row of cubes, each its own colour.
     for (at, color) in CUBE_STARTS.into_iter().zip(COLORS) {
         commands.spawn((
-            Mesh3d(cube.clone()),
             MeshMaterial3d(materials.add(color)),
             Transform::from_translation(at),
             Grabbable,

@@ -58,9 +58,13 @@ The box shapes live in: its walls, the grid placed shapes snap to (0.15 m cells)
 _Avoid_: Box, room, bounds
 
 **Shape**:
-A solid in the Arena that hands can grab. New ones are placed on the Arena's grid.
+A solid in the Arena that hands can grab: a Primitive with its parameters. New ones are placed on the Arena's grid.
 _Avoid_: Cube, block, object
 
 **Selection**:
 The shape edits act on: the one under a cursor (a hand's or the mouse's), else the one grabbed last. It is outlined.
 _Avoid_: Focus, active shape
+
+**Primitive**:
+The kind of solid a Shape is (box, rounded box, cylinder, frustum, cone), given by its parameters: per-axis size, roundness and taper. A Shape is never a mesh you edit (ADR 0004).
+_Avoid_: Mesh, model
