@@ -1,7 +1,6 @@
-mod support;
 
 use bevy::prelude::*;
-use support::*;
+use crate::support::*;
 
 /// One hand holds the cube; the other then pinches with its cursor on the
 /// cube (in the middle of the view, where the cube is). Both then move to

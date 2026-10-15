@@ -1,7 +1,6 @@
-mod support;
 
 use bevy::prelude::*;
-use support::*;
+use crate::support::*;
 use terrain_app::{BOX_MAX, BOX_MIN, CUBE_SIZE};
 use terrain_hands::HandFrame;
 

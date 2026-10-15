@@ -1,7 +1,6 @@
-mod support;
 
 use bevy::prelude::*;
-use support::*;
+use crate::support::*;
 use terrain_app::HandCursor;
 
 /// Straight ahead of the camera, so the middle of the screen.

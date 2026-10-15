@@ -1,7 +1,6 @@
-mod support;
 
 use bevy::prelude::*;
-use support::*;
+use crate::support::*;
 use terrain_app::CUBE_STARTS;
 
 /// A scene of two cubes, left and right of the middle.

@@ -1,7 +1,6 @@
-mod support;
 
 use bevy::prelude::*;
-use support::*;
+use crate::support::*;
 
 const START: Vec3 = Vec3::new(0.0, 0.0, 0.5);
 

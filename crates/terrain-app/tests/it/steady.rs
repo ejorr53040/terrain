@@ -1,9 +1,8 @@
-mod support;
 
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
-use support::*;
+use crate::support::*;
 use terrain_app::GRAB_GAIN;
 use terrain_hands::{HandFrame, ReplaySource};
 

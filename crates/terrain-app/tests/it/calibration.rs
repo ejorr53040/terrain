@@ -1,7 +1,6 @@
-mod support;
 
 use bevy::prelude::*;
-use support::*;
+use crate::support::*;
 use terrain_hands::HandFrame;
 
 /// Where calibration asks for the hand: 50 cm straight in front of the camera.
