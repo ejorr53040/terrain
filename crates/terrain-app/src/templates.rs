@@ -104,6 +104,19 @@ impl Library {
         library
     }
 
+    /// The templates whose name or a tag contains `query`, ignoring case,
+    /// by their place in `templates`.
+    pub fn search(&self, query: &str) -> Vec<usize> {
+        let query = query.to_lowercase();
+        let hit = |text: &String| text.to_lowercase().contains(&query);
+        (0..self.templates.len())
+            .filter(|&i| {
+                let t = &self.templates[i];
+                hit(&t.name) || t.tags.iter().any(hit)
+            })
+            .collect()
+    }
+
     /// Adds `template` and makes it current, writing it to `dir` if there is one.
     fn save(&mut self, template: Template) -> Result<(), String> {
         if let Some(dir) = &self.dir {
@@ -155,6 +168,14 @@ fn built_in() -> Vec<Template> {
     ]
 }
 
+/// Saves and stamps asked for without their keys, by the overlay. Taken
+/// (and cleared) the next update, exactly as `T` and `P` would be.
+#[derive(Resource, Default, Debug)]
+pub struct Requests {
+    pub save: bool,
+    pub stamp: bool,
+}
+
 /// `T`, `Tab` and `P`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn use_templates(
@@ -164,15 +185,17 @@ pub(crate) fn use_templates(
     materials: Res<Materials>,
     selection: Res<Selection>,
     mut library: ResMut<Library>,
+    mut requests: ResMut<Requests>,
     shapes: Query<(Entity, &Transform, &Shape, &Material), With<Grabbable>>,
     hands: Query<&HandCursor>,
     window: Query<&Window, With<PrimaryWindow>>,
     scene_camera: SceneCamera,
 ) {
+    let Requests { save, stamp } = std::mem::take(&mut *requests);
     if keys.just_pressed(KeyCode::Tab) && !library.templates.is_empty() {
         library.current = (library.current + 1) % library.templates.len();
     }
-    if keys.just_pressed(KeyCode::KeyT)
+    if (keys.just_pressed(KeyCode::KeyT) || save)
         && let Some(first) = selection.0.and_then(|e| shapes.get(e).ok())
     {
         // The selection and every shape touching it, and touching those.
@@ -221,7 +244,7 @@ pub(crate) fn use_templates(
             error!("couldn't save the template: {e}");
         }
     }
-    if keys.just_pressed(KeyCode::KeyP)
+    if (keys.just_pressed(KeyCode::KeyP) || stamp)
         && let Some(template) = library.templates.get(library.current)
     {
         let cursor = cursors(&hands, &window)

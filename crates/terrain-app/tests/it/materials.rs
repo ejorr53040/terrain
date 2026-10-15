@@ -3,13 +3,13 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use crate::support::*;
-use terrain_app::{Material, Materials};
+use terrain_app::{Material, Materials, PhysicsSettings};
 
 /// One cube at `at` made of `material`, in a world with gravity.
 fn falling(material: &str, at: Vec3) -> Harness {
     let mut h = Harness::with_cubes(Vec::new(), &[at]);
     let world = h.app.world_mut();
-    world.insert_resource(Gravity(Vec3::NEG_Y * 9.81));
+    world.resource_mut::<PhysicsSettings>().gravity_on = true;
     let index = world.resource::<Materials>().index(material).unwrap();
     world.entity_mut(h.cube).insert(Material(index));
     h

@@ -119,3 +119,30 @@ fn a_stamp_near_a_wall_moves_in_to_fit() {
     h.run(1).press(KeyCode::KeyP).run(1);
     assert_eq!(shapes(&mut h).len(), 10, "the whole pyramid");
 }
+
+#[test]
+fn search_matches_part_of_a_name_or_tag_ignoring_case() {
+    let library = Library::load(None);
+    let names = |query: &str| -> Vec<String> {
+        library
+            .search(query)
+            .into_iter()
+            .map(|i| library.templates[i].name.clone())
+            .collect()
+    };
+    assert_eq!(names("PYR"), ["pyramid"], "part of a name, any case");
+    assert_eq!(names("roo"), ["pyramid"], "part of a tag");
+    assert_eq!(names("basic"), ["line", "L", "block"]);
+    assert_eq!(names(""), ["line", "L", "block", "pyramid"], "empty lists all");
+    assert!(names("zzz").is_empty());
+}
+
+#[test]
+fn requests_save_and_stamp_like_the_keys() {
+    let mut h = Harness::with_cubes(Vec::new(), &[]);
+    pick(&mut h, "line");
+    h.run(1);
+    h.app.world_mut().resource_mut::<terrain_app::Requests>().stamp = true;
+    h.run(2);
+    assert_eq!(shapes(&mut h).len(), 3, "a requested stamp places the line");
+}

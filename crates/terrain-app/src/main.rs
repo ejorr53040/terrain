@@ -9,7 +9,10 @@
 //! at the cursor, `Delete` removes the outlined shape, `D` copies it and `R`
 //! puts the scene back. `Tab` picks a template, `P` stamps it at the cursor
 //! and `T` saves the selection's build as one, in
-//! `~/.config/terrain/templates`.
+//! `~/.config/terrain/templates`. `O` shows the overlay: tools and the
+//! template library with search.
+
+mod overlay;
 
 use std::path::PathBuf;
 
@@ -68,7 +71,7 @@ fn main() -> AppExit {
         .insert_resource(Library::load(
             calibration_file().and_then(|f| Some(f.parent()?.join("templates"))),
         ))
-        .add_plugins((CursorPlugin, PreviewPlugin::new(tracking)))
+        .add_plugins((CursorPlugin, PreviewPlugin::new(tracking), overlay::OverlayPlugin))
         .add_systems(Startup, spawn_scene)
         .add_systems(Update, (draw_box, paint_shapes, mesh_shapes, outline_selection, show_tool))
         .run()

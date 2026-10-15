@@ -5,6 +5,7 @@ mod calibration;
 mod cursor;
 mod materials;
 mod preview;
+mod settings;
 mod shape;
 mod templates;
 mod tools;
@@ -20,8 +21,9 @@ use terrain_hands::{
 
 pub use build::{Placed, Selection};
 pub use materials::{Material, Materials, Preset};
+pub use settings::PhysicsSettings;
 pub use shape::Shape;
-pub use templates::{Library, Part, Template};
+pub use templates::{Library, Part, Requests, Template};
 pub use tools::Tool;
 pub use calibration::{CALIBRATION_DISTANCE_M, Calibration, load_camera};
 pub use cursor::CursorPlugin;
@@ -167,10 +169,14 @@ impl Plugin for GrabPlugin {
         .init_resource::<Tool>()
         .init_resource::<Materials>()
         .init_resource::<Library>()
+        .init_resource::<Requests>()
+        .init_resource::<PhysicsSettings>()
         // No gravity and no momentum: things only move while held or shoved.
         .add_plugins(PhysicsPlugins::default())
         .insert_resource(Gravity(Vec3::ZERO))
         .add_systems(FixedUpdate, steer)
+        // Before the frame's physics ticks, so a step or a pause counts this frame.
+        .add_systems(PreUpdate, settings::apply_physics)
         .add_systems(
             Update,
             (

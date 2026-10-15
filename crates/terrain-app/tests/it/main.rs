@@ -11,6 +11,7 @@ mod depth_rotation;
 mod grab;
 mod materials;
 mod physics;
+mod physics_menu;
 mod steady;
 mod stretch;
 mod templates;
