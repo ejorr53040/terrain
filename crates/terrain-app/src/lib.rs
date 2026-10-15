@@ -4,6 +4,8 @@ mod build;
 mod calibration;
 mod cursor;
 mod preview;
+mod shape;
+mod tools;
 
 use std::{path::PathBuf, sync::Mutex};
 
@@ -15,6 +17,8 @@ use terrain_hands::{
 };
 
 pub use build::{Placed, Selection};
+pub use shape::Shape;
+pub use tools::Tool;
 pub use calibration::{CALIBRATION_DISTANCE_M, Calibration, load_camera};
 pub use cursor::CursorPlugin;
 pub use preview::{DEFAULT_CAMERA, PreviewPlugin, start_tracking};
@@ -88,24 +92,6 @@ pub const DEMO_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/de
 #[require(Shape)]
 pub struct Grabbable;
 
-/// What a grabbable is: a primitive given by parameters, not a mesh. Its
-/// collider (and, in the app, its mesh) is rebuilt from them when they
-/// change; its `Transform` scale stays 1.
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct Shape {
-    /// Width, height and depth, in meters.
-    pub size: Vec3,
-}
-
-impl Default for Shape {
-    /// A cube one grid cell across.
-    fn default() -> Self {
-        Self {
-            size: Vec3::splat(CUBE_SIZE),
-        }
-    }
-}
-
 /// Marks where a tracked hand is on screen, one entity per hand.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct HandCursor {
@@ -174,6 +160,7 @@ impl Plugin for GrabPlugin {
         .init_resource::<Grab>()
         .init_resource::<Arena>()
         .init_resource::<Selection>()
+        .init_resource::<Tool>()
         // No gravity and no momentum: things only move while held or shoved.
         .add_plugins(PhysicsPlugins::default())
         .insert_resource(Gravity(Vec3::ZERO))
@@ -191,6 +178,7 @@ impl Plugin for GrabPlugin {
                 drive_grab,
                 build::select,
                 build::edit,
+                tools::use_tools,
             )
                 .chain(),
         );
@@ -308,7 +296,7 @@ fn fit_colliders(mut commands: Commands, shapes: Query<(Entity, &Shape), Changed
     for (entity, shape) in &shapes {
         commands
             .entity(entity)
-            .insert(Collider::cuboid(shape.size.x, shape.size.y, shape.size.z));
+            .insert(shape.collider());
     }
 }
 

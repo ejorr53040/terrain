@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use bevy::prelude::*;
 use terrain_app::{
     Arena, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
-    PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, load_camera, start_tracking,
+    PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool, load_camera, start_tracking,
 };
 use terrain_hands::{HandSource, ReplaySource};
 
@@ -64,7 +64,7 @@ fn main() -> AppExit {
         .add_plugins(grab)
         .add_plugins((CursorPlugin, PreviewPlugin::new(tracking)))
         .add_systems(Startup, spawn_scene)
-        .add_systems(Update, (draw_box, dress_new_shapes, mesh_shapes, outline_selection))
+        .add_systems(Update, (draw_box, dress_new_shapes, mesh_shapes, outline_selection, show_tool))
         .run()
 }
 
@@ -109,7 +109,7 @@ fn mesh_shapes(
     for (entity, shape) in &shapes {
         commands
             .entity(entity)
-            .insert(Mesh3d(meshes.add(Cuboid::from_size(shape.size))));
+            .insert(Mesh3d(meshes.add(shape.mesh())));
     }
 }
 
@@ -124,6 +124,18 @@ fn outline_selection(
     }
 }
 
+/// Names the active tool, bottom left.
+#[derive(Component)]
+struct ToolReadout;
+
+fn show_tool(tool: Res<Tool>, mut readout: Query<&mut Text, With<ToolReadout>>) {
+    if tool.is_changed() {
+        for mut text in &mut readout {
+            text.0 = format!("{:?} tool  (1-4 pick, [ ] adjust)", *tool);
+        }
+    }
+}
+
 fn spawn_scene(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -131,6 +143,17 @@ fn spawn_scene(
     commands.spawn((
         Camera3d::default(),
         Transform::from_translation(SCENE_CAMERA_AT).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+    commands.spawn((
+        ToolReadout,
+        Text::new(""),
+        TextFont::from_font_size(16.0),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: px(12),
+            left: px(12),
+            ..default()
+        },
     ));
     commands.spawn((
         DirectionalLight {

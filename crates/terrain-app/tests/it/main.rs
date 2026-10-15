@@ -12,4 +12,5 @@ mod grab;
 mod physics;
 mod steady;
 mod stretch;
+mod tools;
 mod two_cubes;

@@ -68,3 +68,7 @@ _Avoid_: Focus, active shape
 **Primitive**:
 The kind of solid a Shape is (box, rounded box, cylinder, frustum, cone), given by its parameters: per-axis size, roundness and taper. A Shape is never a mesh you edit (ADR 0004).
 _Avoid_: Mesh, model
+
+**Tool**:
+What edits on the Selection do: Move (grab, turn, stretch), Round, Taper or Copy. Keys 1–4 pick one; `[` and `]` lower and raise its value.
+_Avoid_: Mode, brush
