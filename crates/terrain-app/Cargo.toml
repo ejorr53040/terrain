@@ -9,6 +9,8 @@ terrain-hands.workspace = true
 bevy.workspace = true
 avian3d.workspace = true
 serde_json.workspace = true
+serde.workspace = true
+ron.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

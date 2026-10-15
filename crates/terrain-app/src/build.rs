@@ -16,7 +16,7 @@ pub struct Placed;
 
 /// Where the cursors are in the view (0 to 1 across and down from the top
 /// left): each hand's, then the mouse's.
-fn cursors(hands: &Query<&HandCursor>, window: &Query<&Window, With<PrimaryWindow>>) -> Vec<Vec2> {
+pub(crate) fn cursors(hands: &Query<&HandCursor>, window: &Query<&Window, With<PrimaryWindow>>) -> Vec<Vec2> {
     let mouse = window
         .single()
         .ok()
@@ -51,7 +51,7 @@ pub(crate) fn select(
 }
 
 /// The grid cell `at` is in, kept inside the Arena.
-fn cell_of(arena: &Arena, at: Vec3) -> IVec3 {
+pub(crate) fn cell_of(arena: &Arena, at: Vec3) -> IVec3 {
     ((at - arena.min) / arena.cell)
         .floor()
         .as_ivec3()
@@ -59,20 +59,20 @@ fn cell_of(arena: &Arena, at: Vec3) -> IVec3 {
 }
 
 /// How many whole cells fit along each side.
-fn cells(arena: &Arena) -> IVec3 {
+pub(crate) fn cells(arena: &Arena) -> IVec3 {
     ((arena.max - arena.min) / arena.cell)
         .floor()
         .as_ivec3()
         .max(IVec3::ONE)
 }
 
-fn middle_of(arena: &Arena, cell: IVec3) -> Vec3 {
+pub(crate) fn middle_of(arena: &Arena, cell: IVec3) -> Vec3 {
     arena.min + (cell.as_vec3() + 0.5) * arena.cell
 }
 
 /// Whether a shape placed at `at` would start inside one already there.
 // ponytail: treats every shape as one cell big; a stretched shape can still be overlapped.
-fn taken(arena: &Arena, at: Vec3, shapes: &[Vec3]) -> bool {
+pub(crate) fn taken(arena: &Arena, at: Vec3, shapes: &[Vec3]) -> bool {
     shapes
         .iter()
         .any(|s| (*s - at).abs().max_element() < arena.cell - 1e-3)

@@ -76,3 +76,11 @@ _Avoid_: Mode, brush
 **Material**:
 What a Shape is made of: a preset (glass, wood, rubber, plastic, metal) with a colour, density, static and dynamic friction, restitution, whether it conducts, and an inert charge. Editing a preset changes every shape made of it. `M` gives the Selection the next one.
 _Avoid_: Substance, physics material
+
+**Template**:
+A saved build: shapes on grid cells relative to the first, each with its parameters, turn and Material name. One RON file each in `~/.config/terrain/templates`. Stamping places it on the grid, all or nothing; its shapes are loose, not glued.
+_Avoid_: Prefab, blueprint
+
+**Library**:
+The built-in templates (line, L, block, pyramid) and the user's saved ones. A file that fails to parse is skipped with a message.
+_Avoid_: Catalog, palette

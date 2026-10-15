@@ -7,14 +7,16 @@
 //! `C` calibrates the camera; the result is kept in
 //! `~/.config/terrain/calibration.json` and loaded at start. `N` adds a box
 //! at the cursor, `Delete` removes the outlined shape, `D` copies it and `R`
-//! puts the scene back.
+//! puts the scene back. `Tab` picks a template, `P` stamps it at the cursor
+//! and `T` saves the selection's build as one, in
+//! `~/.config/terrain/templates`.
 
 use std::path::PathBuf;
 
 use bevy::prelude::*;
 use terrain_app::{
     Arena, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
-    Material, Materials, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool, load_camera, start_tracking,
+    Library, Material, Materials, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool, load_camera, start_tracking,
 };
 use terrain_hands::{HandSource, ReplaySource};
 
@@ -62,6 +64,10 @@ fn main() -> AppExit {
             ..default()
         }))
         .add_plugins(grab)
+        // Saved templates sit beside the calibration.
+        .insert_resource(Library::load(
+            calibration_file().and_then(|f| Some(f.parent()?.join("templates"))),
+        ))
         .add_plugins((CursorPlugin, PreviewPlugin::new(tracking)))
         .add_systems(Startup, spawn_scene)
         .add_systems(Update, (draw_box, paint_shapes, mesh_shapes, outline_selection, show_tool))
@@ -127,6 +133,7 @@ fn show_tool(
     tool: Res<Tool>,
     selection: Res<Selection>,
     presets: Res<Materials>,
+    library: Res<Library>,
     made_of: Query<&Material>,
     mut readout: Query<&mut Text, With<ToolReadout>>,
 ) {
@@ -135,7 +142,15 @@ fn show_tool(
         .and_then(|e| made_of.get(e).ok())
         .and_then(|m| presets.presets.get(m.0))
         .map_or(String::new(), |p| format!("   {} (M next)", p.name));
-    let line = format!("{:?} tool  (1-4 pick, [ ] adjust){material}", *tool);
+    let template = library
+        .templates
+        .get(library.current)
+        .map_or(String::new(), |t| format!("\ntemplate {} (Tab next, P stamp, T save)", t.name));
+    let skipped = match library.errors.len() {
+        0 => String::new(),
+        n => format!("\n{n} template file(s) skipped, see log"),
+    };
+    let line = format!("{:?} tool  (1-4 pick, [ ] adjust){material}{template}{skipped}", *tool);
     for mut text in &mut readout {
         if text.0 != line {
             text.0 = line.clone();

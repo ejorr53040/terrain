@@ -13,5 +13,6 @@ mod materials;
 mod physics;
 mod steady;
 mod stretch;
+mod templates;
 mod tools;
 mod two_cubes;

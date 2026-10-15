@@ -5760,6 +5760,8 @@ version = "0.1.0"
 dependencies = [
  "avian3d",
  "bevy",
+ "ron",
+ "serde",
  "serde_json",
  "terrain-hands",
 ]
