@@ -2,6 +2,7 @@
 //! copy of the crate's dependencies, which ran the machine out of memory.
 
 mod support;
+mod arena;
 mod bounds;
 mod calibration;
 mod cursor;

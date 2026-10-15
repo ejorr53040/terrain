@@ -1,7 +1,7 @@
 
 use bevy::prelude::*;
 use crate::support::*;
-use terrain_app::{BOX_MAX, BOX_MIN, CUBE_SIZE};
+use terrain_app::{Arena, CUBE_SIZE};
 use terrain_hands::HandFrame;
 
 /// Where the palm starts each drag, in front of the camera.
@@ -23,7 +23,8 @@ fn drag_repeatedly(by: Vec3, times: usize) -> Vec<HandFrame> {
 fn a_cube_dragged_far_past_each_side_stops_at_the_box() {
     // Where a cube's centre can be: the box shrunk by the cube's half-width.
     let half = Vec3::splat(CUBE_SIZE / 2.0);
-    let (lowest, highest) = (BOX_MIN + half, BOX_MAX - half);
+    let arena = Arena::default();
+    let (lowest, highest) = (arena.min + half, arena.max - half);
     for axis in 0..3 {
         for (sign, wall) in [(1.0, highest[axis]), (-1.0, lowest[axis])] {
             let mut by = Vec3::ZERO;
@@ -42,6 +43,7 @@ fn a_cube_dragged_far_past_each_side_stops_at_the_box() {
 #[test]
 fn the_whole_box_is_in_view_of_the_scene_camera() {
     let mut h = Harness::with_cubes(Vec::new(), &[Vec3::ZERO]);
+    let Arena { min, max, .. } = Arena::default();
     let world = h.app.world_mut();
     let (camera, projection) = world
         .query_filtered::<(&Transform, &Projection), With<Camera3d>>()
@@ -51,8 +53,8 @@ fn the_whole_box_is_in_view_of_the_scene_camera() {
     for i in 0..8 {
         let corner = Vec3::select(
             BVec3::new(i & 1 != 0, i & 2 != 0, i & 4 != 0),
-            BOX_MAX,
-            BOX_MIN,
+            max,
+            min,
         );
         let clip = clip_from_world * corner.extend(1.0);
         let ndc = clip.truncate() / clip.w;

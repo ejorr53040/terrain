@@ -28,10 +28,37 @@ pub const SCENE_CAMERA_AT: Vec3 = Vec3::new(0.0, 0.25, 1.2);
 /// How wide each cube is, in meters.
 pub const CUBE_SIZE: f32 = 0.15;
 
-/// The box the cubes live in: its walls, in scene meters. Sized so the whole
-/// of it is in view of the scene camera.
-pub const BOX_MIN: Vec3 = Vec3::new(-0.65, -0.3, -0.4);
-pub const BOX_MAX: Vec3 = Vec3::new(0.65, 0.4, 0.2);
+/// The box shapes live in. Its walls are rebuilt whenever it changes.
+#[derive(Resource, Clone, Copy, Debug, PartialEq)]
+pub struct Arena {
+    /// Opposite corners of the walls, in scene meters.
+    pub min: Vec3,
+    pub max: Vec3,
+    /// The grid that placed shapes snap to, in meters.
+    pub cell: f32,
+    /// The most shapes it holds, so physics stays smooth.
+    pub cap: usize,
+}
+
+impl Default for Arena {
+    /// Sized so the whole of it is in view of the scene camera.
+    fn default() -> Self {
+        Self {
+            min: Vec3::new(-0.65, -0.3, -0.4),
+            max: Vec3::new(0.65, 0.4, 0.2),
+            cell: CUBE_SIZE,
+            cap: 64,
+        }
+    }
+}
+
+impl Arena {
+    /// The longest a shape may be stretched: half a cell short of the
+    /// Arena's shallowest side, so it can still turn a little in there.
+    pub fn longest(&self) -> f32 {
+        (self.max - self.min).min_element() - self.cell / 2.0
+    }
+}
 
 /// A held entity closes the gap to where the hand wants it with this time
 /// constant, in seconds: short enough to follow a quick move, long enough
@@ -124,14 +151,15 @@ impl Plugin for GrabPlugin {
         // Present under DefaultPlugins; headless apps press keys by hand.
         .init_resource::<ButtonInput<KeyCode>>()
         .init_resource::<Grab>()
+        .init_resource::<Arena>()
         // No gravity and no momentum: things only move while held or shoved.
         .add_plugins(PhysicsPlugins::default())
         .insert_resource(Gravity(Vec3::ZERO))
-        .add_systems(Startup, spawn_walls)
         .add_systems(FixedUpdate, steer)
         .add_systems(
             Update,
             (
+                build_walls,
                 read_hands,
                 calibration::calibrate,
                 remember_start,
@@ -187,10 +215,9 @@ struct Second {
     last_seen_ms: u64,
 }
 
-/// The smallest and largest a stretched entity can be, as a multiple of its
-/// unstretched size. The largest keeps a cube shorter than the box is deep.
+/// The smallest a stretched entity can be, as a multiple of its unstretched
+/// size. The largest is set by the Arena.
 const STRETCH_MIN: f32 = 0.2;
-const STRETCH_MAX: f32 = 3.5;
 
 impl Held {
     /// Carries on from where the entity is now, measuring `hand`'s motion from here.
@@ -200,19 +227,31 @@ impl Held {
     }
 }
 
-/// Closes the box in with six solid, immovable walls, so nothing held,
-/// shoved or let go of can leave it.
-fn spawn_walls(mut commands: Commands) {
+/// One of the Arena's six walls.
+#[derive(Component)]
+struct Wall;
+
+/// Closes the Arena in with six solid, immovable walls, so nothing held,
+/// shoved or let go of can leave it; rebuilt when the Arena changes.
+fn build_walls(mut commands: Commands, arena: Res<Arena>, walls: Query<Entity, With<Wall>>) {
+    if !arena.is_changed() {
+        return;
+    }
+    for wall in &walls {
+        commands.entity(wall).despawn();
+    }
     // Thick enough that a fast cube can't step through in one physics tick.
     const THICKNESS: f32 = 1.0;
-    let size = BOX_MAX - BOX_MIN;
+    let Arena { min, max, .. } = *arena;
+    let size = max - min;
     for axis in 0..3 {
-        for (face, outward) in [(BOX_MIN[axis], -1.0), (BOX_MAX[axis], 1.0)] {
-            let mut centre = (BOX_MIN + BOX_MAX) / 2.0;
+        for (face, outward) in [(min[axis], -1.0), (max[axis], 1.0)] {
+            let mut centre = (min + max) / 2.0;
             centre[axis] = face + outward * THICKNESS / 2.0;
             let mut extent = size + Vec3::splat(2.0 * THICKNESS);
             extent[axis] = THICKNESS;
             commands.spawn((
+                Wall,
                 RigidBody::Static,
                 Collider::cuboid(extent.x, extent.y, extent.z),
                 Transform::from_translation(centre),
@@ -337,7 +376,9 @@ fn drive_grab(
     mut grab: ResMut<Grab>,
     mut grabbables: Query<(Entity, &mut Transform), With<Grabbable>>,
     scene_camera: SceneCamera,
+    arena: Res<Arena>,
 ) {
+    let stretch_max = arena.longest() / CUBE_SIZE;
     let Some(frame) = hands.fresh.take() else {
         return;
     };
@@ -376,7 +417,7 @@ fn drive_grab(
                 held.target.rotation = held.transform.rotation;
                 held.target.scale[second.axis] = (held.transform.scale[second.axis] * gap(a, b)
                     / gap(&held.hand, &second.hand))
-                .clamp(STRETCH_MIN, STRETCH_MAX);
+                .clamp(STRETCH_MIN, stretch_max);
                 true
             }
             // The first hand let go: the second carries on alone.

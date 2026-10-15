@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use bevy::prelude::*;
 use terrain_app::{
-    BOX_MAX, BOX_MIN, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
+    Arena, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
     PreviewPlugin, SCENE_CAMERA_AT, load_camera, start_tracking,
 };
 use terrain_hands::{HandSource, ReplaySource};
@@ -66,10 +66,10 @@ fn main() -> AppExit {
         .run()
 }
 
-/// The walls the cubes live in, as an outline.
-fn draw_box(mut gizmos: Gizmos) {
+/// The Arena's walls, as an outline.
+fn draw_box(mut gizmos: Gizmos, arena: Res<Arena>) {
     gizmos.cube(
-        Transform::from_translation((BOX_MIN + BOX_MAX) / 2.0).with_scale(BOX_MAX - BOX_MIN),
+        Transform::from_translation((arena.min + arena.max) / 2.0).with_scale(arena.max - arena.min),
         Color::srgba(0.7, 0.85, 1.0, 0.6),
     );
 }
