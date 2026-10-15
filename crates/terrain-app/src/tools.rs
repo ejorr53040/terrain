@@ -51,7 +51,9 @@ pub(crate) fn use_tools(
     };
     // Kept on whole steps, so ten presses get exactly from one end to the other.
     let nudge = |value: f32| ((value + step) / STEP).round() * STEP;
-    if *tool == Tool::Round {
-        shape.roundness = nudge(shape.roundness).clamp(0.0, 1.0);
+    match *tool {
+        Tool::Round => shape.roundness = nudge(shape.roundness).clamp(0.0, 1.0),
+        Tool::Taper => shape.taper = nudge(shape.taper).clamp(0.0, 1.0),
+        Tool::Move | Tool::Copy => {}
     }
 }

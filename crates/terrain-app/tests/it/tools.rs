@@ -97,3 +97,48 @@ fn half_round_is_in_between() {
     assert!(!solid_at(&mut h, Vec3::new(0.07, 0.0, 0.07)));
     assert!(solid_at(&mut h, Vec3::new(0.06, 0.0, 0.03)));
 }
+
+#[test]
+fn brackets_taper_the_selection_with_the_taper_tool() {
+    let mut h = hovered_cube();
+    h.press(KeyCode::Digit3);
+    for _ in 0..4 {
+        h.press(KeyCode::BracketRight);
+    }
+    assert!((h.shape().taper - 0.4).abs() < 1e-4, "{}", h.shape().taper);
+    assert_eq!(h.shape().roundness, 0.0, "Taper leaves roundness alone");
+    for _ in 0..20 {
+        h.press(KeyCode::BracketRight);
+    }
+    assert_eq!(h.shape().taper, 1.0, "taper tops out at 1");
+}
+
+#[test]
+fn a_fully_tapered_box_is_a_pyramid() {
+    let mut h = hovered_cube();
+    h.press(KeyCode::Digit3);
+    for _ in 0..10 {
+        h.press(KeyCode::BracketRight);
+    }
+    h.run(2);
+    assert!(solid_at(&mut h, Vec3::new(0.07, -0.07, 0.07)), "the base keeps its corners");
+    assert!(!solid_at(&mut h, Vec3::new(0.06, 0.06, 0.06)), "the top is a point");
+    assert!(solid_at(&mut h, Vec3::new(0.0, 0.07, 0.0)), "the point is in the middle");
+}
+
+#[test]
+fn a_round_shape_tapers_into_a_cone() {
+    let mut h = hovered_cube();
+    h.press(KeyCode::Digit2);
+    for _ in 0..10 {
+        h.press(KeyCode::BracketRight);
+    }
+    h.press(KeyCode::Digit3);
+    for _ in 0..10 {
+        h.press(KeyCode::BracketRight);
+    }
+    h.run(2);
+    assert!(!solid_at(&mut h, Vec3::new(0.065, -0.07, 0.065)), "the base is round");
+    assert!(solid_at(&mut h, Vec3::new(0.07, -0.07, 0.0)), "out to its rim");
+    assert!(!solid_at(&mut h, Vec3::new(0.04, 0.05, 0.0)), "and narrows to a point");
+}
