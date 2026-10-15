@@ -72,3 +72,7 @@ _Avoid_: Mesh, model
 **Tool**:
 What edits on the Selection do: Move (grab, turn, stretch), Round, Taper or Copy. Keys 1–4 pick one; `[` and `]` lower and raise its value.
 _Avoid_: Mode, brush
+
+**Material**:
+What a Shape is made of: a preset (glass, wood, rubber, plastic, metal) with a colour, density, static and dynamic friction, restitution, whether it conducts, and an inert charge. Editing a preset changes every shape made of it. `M` gives the Selection the next one.
+_Avoid_: Substance, physics material

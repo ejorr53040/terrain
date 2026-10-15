@@ -4,7 +4,7 @@
 
 use bevy::{ecs::entity_disabling::Disabled, prelude::*, window::PrimaryWindow};
 
-use crate::{Arena, Grab, Grabbable, HandCursor, SceneCamera, Screen, Shape};
+use crate::{Arena, Grab, Grabbable, HandCursor, Material, SceneCamera, Screen, Shape};
 
 /// The shape edits act on: the one under a cursor, else the one grabbed last.
 #[derive(Resource, Default, Debug)]
@@ -94,8 +94,7 @@ pub(crate) fn edit(
             &Transform,
             &Shape,
             Has<Placed>,
-            Option<&Mesh3d>,
-            Option<&MeshMaterial3d<StandardMaterial>>,
+            &Material,
         ),
         With<Grabbable>,
     >,
@@ -117,7 +116,7 @@ pub(crate) fn edit(
             commands.spawn((Grabbable, Placed, Transform::from_translation(at)));
         }
     }
-    let Some((entity, transform, shape, placed, mesh, material)) =
+    let Some((entity, transform, shape, placed, material)) =
         selection.0.and_then(|e| shapes.get(e).ok())
     else {
         return;
@@ -133,21 +132,16 @@ pub(crate) fn edit(
                     .total_cmp(&b.distance(transform.translation))
             });
         if let Some(at) = free {
-            let mut copy = commands.spawn((
+            commands.spawn((
                 Grabbable,
                 Placed,
                 *shape,
+                *material,
                 Transform {
                     translation: at,
                     ..*transform
                 },
             ));
-            if let Some(mesh) = mesh {
-                copy.insert(mesh.clone());
-            }
-            if let Some(material) = material {
-                copy.insert(material.clone());
-            }
         }
     }
     if keys.just_pressed(KeyCode::Delete) {

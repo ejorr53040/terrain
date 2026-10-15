@@ -3,6 +3,7 @@
 mod build;
 mod calibration;
 mod cursor;
+mod materials;
 mod preview;
 mod shape;
 mod tools;
@@ -17,6 +18,7 @@ use terrain_hands::{
 };
 
 pub use build::{Placed, Selection};
+pub use materials::{Material, Materials, Preset};
 pub use shape::Shape;
 pub use tools::Tool;
 pub use calibration::{CALIBRATION_DISTANCE_M, Calibration, load_camera};
@@ -89,7 +91,7 @@ pub const DEMO_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/de
 
 /// An entity hands can pick up and move.
 #[derive(Component)]
-#[require(Shape)]
+#[require(Shape, Material)]
 pub struct Grabbable;
 
 /// Marks where a tracked hand is on screen, one entity per hand.
@@ -161,6 +163,7 @@ impl Plugin for GrabPlugin {
         .init_resource::<Arena>()
         .init_resource::<Selection>()
         .init_resource::<Tool>()
+        .init_resource::<Materials>()
         // No gravity and no momentum: things only move while held or shoved.
         .add_plugins(PhysicsPlugins::default())
         .insert_resource(Gravity(Vec3::ZERO))
@@ -180,6 +183,7 @@ impl Plugin for GrabPlugin {
                 build::select,
                 build::edit,
                 tools::use_tools,
+                materials::apply_materials,
             )
                 .chain(),
         );
@@ -315,10 +319,12 @@ fn fit_colliders(mut commands: Commands, shapes: Query<(Entity, &Shape), Changed
 }
 
 /// Pushes each held entity toward its hand's target by setting its velocity,
-/// so it shoves what's in the way and is stopped by what won't move. Every
-/// other entity is stilled, so it stays where it was let go or shoved to.
+/// so it shoves what's in the way and is stopped by what won't move. With no
+/// gravity every other entity is stilled, so it stays where it was let go or
+/// shoved to; with gravity they fall, bounce and slide freely.
 fn steer(
     grab: Res<Grab>,
+    gravity: Res<Gravity>,
     mut bodies: Query<
         (
             Entity,
@@ -331,8 +337,10 @@ fn steer(
 ) {
     for (entity, at, mut linear, mut angular) in &mut bodies {
         let Some(held) = grab.held.iter().find(|h| h.entity == entity) else {
-            linear.0 = Vec3::ZERO;
-            angular.0 = Vec3::ZERO;
+            if gravity.0 == Vec3::ZERO {
+                linear.0 = Vec3::ZERO;
+                angular.0 = Vec3::ZERO;
+            }
             continue;
         };
         linear.0 = ((held.target.translation - at.translation) / STEER_SECONDS)
@@ -501,7 +509,7 @@ impl Screen {
 fn drive_grab(
     mut commands: Commands,
     tool: Res<Tool>,
-    looks: Query<&MeshMaterial3d<StandardMaterial>>,
+    made_of: Query<&Material>,
     mut hands: ResMut<Hands>,
     mut grab: ResMut<Grab>,
     mut grabbables: Query<(Entity, &Transform, &mut Shape), With<Grabbable>>,
@@ -637,12 +645,10 @@ fn drive_grab(
                 if grabbables.iter().count() >= arena.cap {
                     continue;
                 }
-                let mut copy =
-                    commands.spawn((Grabbable, Placed, *shape, *transform, Sensor, Copying));
-                if let Ok(material) = looks.get(entity) {
-                    copy.insert(material.clone());
-                }
-                entity = copy.id();
+                let material = made_of.get(entity).copied().unwrap_or_default();
+                entity = commands
+                    .spawn((Grabbable, Placed, *shape, material, *transform, Sensor, Copying))
+                    .id();
             }
             // The view each camera has, at the hand's and the entity's depth,
             // so a move fills the same share of the screen as the cursor's.

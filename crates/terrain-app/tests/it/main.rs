@@ -9,6 +9,7 @@ mod calibration;
 mod cursor;
 mod depth_rotation;
 mod grab;
+mod materials;
 mod physics;
 mod steady;
 mod stretch;

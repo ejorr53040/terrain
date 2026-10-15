@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use bevy::prelude::*;
 use terrain_app::{
     Arena, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
-    PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool, load_camera, start_tracking,
+    Material, Materials, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool, load_camera, start_tracking,
 };
 use terrain_hands::{HandSource, ReplaySource};
 
@@ -64,7 +64,7 @@ fn main() -> AppExit {
         .add_plugins(grab)
         .add_plugins((CursorPlugin, PreviewPlugin::new(tracking)))
         .add_systems(Startup, spawn_scene)
-        .add_systems(Update, (draw_box, dress_new_shapes, mesh_shapes, outline_selection, show_tool))
+        .add_systems(Update, (draw_box, paint_shapes, mesh_shapes, outline_selection, show_tool))
         .run()
 }
 
@@ -76,27 +76,21 @@ fn draw_box(mut gizmos: Gizmos, arena: Res<Arena>) {
     );
 }
 
-/// Colours for shapes, the starting row's first, then new boxes' in turn.
-const COLORS: [Color; 5] = [
-    Color::srgb(0.35, 0.65, 0.95),
-    Color::srgb(0.95, 0.6, 0.3),
-    Color::srgb(0.45, 0.85, 0.5),
-    Color::srgb(0.75, 0.5, 0.95),
-    Color::srgb(0.95, 0.85, 0.35),
-];
-
-/// Gives each new box (from `N`) the next colour.
-fn dress_new_shapes(
+/// Colours each shape by its material, again when it or the presets change.
+fn paint_shapes(
     mut commands: Commands,
+    presets: Res<Materials>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    new: Query<Entity, (Added<Grabbable>, Without<MeshMaterial3d<StandardMaterial>>)>,
-    mut made: Local<usize>,
+    shapes: Query<(Entity, Ref<Material>), With<Grabbable>>,
 ) {
-    for entity in &new {
-        commands
-            .entity(entity)
-            .insert(MeshMaterial3d(materials.add(COLORS[*made % COLORS.len()])));
-        *made += 1;
+    for (entity, material) in &shapes {
+        if let Some(p) = presets.presets.get(material.0)
+            && (material.is_changed() || presets.is_changed())
+        {
+            commands
+                .entity(entity)
+                .insert(MeshMaterial3d(materials.add(p.color)));
+        }
     }
 }
 
@@ -128,18 +122,28 @@ fn outline_selection(
 #[derive(Component)]
 struct ToolReadout;
 
-fn show_tool(tool: Res<Tool>, mut readout: Query<&mut Text, With<ToolReadout>>) {
-    if tool.is_changed() {
-        for mut text in &mut readout {
-            text.0 = format!("{:?} tool  (1-4 pick, [ ] adjust)", *tool);
+/// The tool, and what the selection is made of.
+fn show_tool(
+    tool: Res<Tool>,
+    selection: Res<Selection>,
+    presets: Res<Materials>,
+    made_of: Query<&Material>,
+    mut readout: Query<&mut Text, With<ToolReadout>>,
+) {
+    let material = selection
+        .0
+        .and_then(|e| made_of.get(e).ok())
+        .and_then(|m| presets.presets.get(m.0))
+        .map_or(String::new(), |p| format!("   {} (M next)", p.name));
+    let line = format!("{:?} tool  (1-4 pick, [ ] adjust){material}", *tool);
+    for mut text in &mut readout {
+        if text.0 != line {
+            text.0 = line.clone();
         }
     }
 }
 
-fn spawn_scene(
-    mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+fn spawn_scene(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
         Transform::from_translation(SCENE_CAMERA_AT).looking_at(Vec3::ZERO, Vec3::Y),
@@ -162,10 +166,10 @@ fn spawn_scene(
         },
         Transform::from_xyz(1.0, 2.0, 1.5).looking_at(Vec3::ZERO, Vec3::Y),
     ));
-    // A row of cubes, each its own colour.
-    for (at, color) in CUBE_STARTS.into_iter().zip(COLORS) {
+    // A row of cubes, one of each material.
+    for (i, at) in CUBE_STARTS.into_iter().enumerate() {
         commands.spawn((
-            MeshMaterial3d(materials.add(color)),
+            Material(i),
             Transform::from_translation(at),
             Grabbable,
         ));
