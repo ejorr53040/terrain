@@ -138,8 +138,15 @@ fn show_tool(
     presets: Res<Materials>,
     library: Res<Library>,
     made_of: Query<&Material>,
+    shapes: Query<&Shape>,
     mut readout: Query<&mut Text, With<ToolReadout>>,
 ) {
+    let value = match (*tool, selection.0.and_then(|e| shapes.get(e).ok())) {
+        (Tool::Round, Some(s)) => format!("   roundness {:.1}", s.roundness),
+        (Tool::Taper, Some(s)) => format!("   taper {:.1}", s.taper),
+        (Tool::Round | Tool::Taper, None) => "   (select a shape)".into(),
+        _ => String::new(),
+    };
     let material = selection
         .0
         .and_then(|e| made_of.get(e).ok())
@@ -153,7 +160,10 @@ fn show_tool(
         0 => String::new(),
         n => format!("\n{n} template file(s) skipped, see log"),
     };
-    let line = format!("{:?} tool  (1-4 pick, [ ] adjust){material}{template}{skipped}", *tool);
+    let line = format!(
+        "{:?} tool  (1-4 pick, [ ] adjust){value}{material}{template}{skipped}",
+        *tool
+    );
     for mut text in &mut readout {
         if text.0 != line {
             text.0 = line.clone();

@@ -176,3 +176,37 @@ fn d_duplicates_the_selection_into_a_free_cell_next_to_it() {
     }
     assert_apart(&all, arena.cell);
 }
+
+#[test]
+fn the_selection_stays_on_the_last_hovered_shape_when_the_cursor_leaves() {
+    let mut h = Harness::with_cubes(
+        [
+            hold(&[Pose::open(ON_RIGHT)], SETTLE),
+            hold(&[Pose::open(ON_NOTHING)], SETTLE),
+        ]
+        .concat(),
+        &[LEFT_CUBE, RIGHT_CUBE],
+    );
+    h.run_all();
+    assert_eq!(selected(&h), Some(h.cubes[1]), "still the right cube, pointed at last");
+}
+
+#[test]
+fn a_mouse_over_the_overlay_points_at_nothing_behind_it() {
+    let mut h = Harness::with_cubes(Vec::new(), &[LEFT_CUBE, RIGHT_CUBE]);
+    // The overlay covers the middle of the window, where the mouse is.
+    h.app.world_mut().resource_mut::<terrain_app::OverlayArea>().0 =
+        Some(Rect::new(600.0, 300.0, 1000.0, 600.0));
+    // A window with the mouse right on the left cube.
+    let mut window = Window::default();
+    window.resolution.set(1600.0, 900.0);
+    window.set_cursor_position(Some(Vec2::new(0.5, 0.5) * Vec2::new(1600.0, 900.0)));
+    h.app.world_mut().spawn((window, bevy::window::PrimaryWindow));
+    let world = h.app.world_mut();
+    world.entity_mut(h.cubes[0]).insert(Transform::from_translation(Vec3::ZERO));
+    h.run(2);
+    assert_eq!(selected(&h), None, "the mouse is on the overlay, not the cube");
+    h.app.world_mut().resource_mut::<terrain_app::OverlayArea>().0 = None;
+    h.run(2);
+    assert_eq!(selected(&h), Some(h.cubes[0]), "off the overlay, it points at the cube");
+}

@@ -19,7 +19,7 @@ use terrain_hands::{
     TrackedHands,
 };
 
-pub use build::{Placed, Selection};
+pub use build::{OverlayArea, Placed, Selection};
 pub use materials::{Material, Materials, Preset};
 pub use settings::PhysicsSettings;
 pub use shape::Shape;
@@ -166,6 +166,7 @@ impl Plugin for GrabPlugin {
         .init_resource::<Grab>()
         .init_resource::<Arena>()
         .init_resource::<Selection>()
+        .init_resource::<OverlayArea>()
         .init_resource::<Tool>()
         .init_resource::<Materials>()
         .init_resource::<Library>()

@@ -14,28 +14,41 @@ pub struct Selection(pub Option<Entity>);
 #[derive(Component)]
 pub struct Placed;
 
+/// Where the overlay is drawn, in window pixels (logical, from the top
+/// left); a mouse in there isn't pointing into the scene. The overlay sets it.
+#[derive(Resource, Default, Debug)]
+pub struct OverlayArea(pub Option<Rect>);
+
 /// Where the cursors are in the view (0 to 1 across and down from the top
-/// left): each hand's, then the mouse's.
-pub(crate) fn cursors(hands: &Query<&HandCursor>, window: &Query<&Window, With<PrimaryWindow>>) -> Vec<Vec2> {
-    let mouse = window
-        .single()
-        .ok()
-        .and_then(|w| Some(w.cursor_position()? / w.size()));
+/// left): each hand's, then the mouse's unless it's over the overlay.
+pub(crate) fn cursors(
+    hands: &Query<&HandCursor>,
+    window: &Query<&Window, With<PrimaryWindow>>,
+    overlay: &OverlayArea,
+) -> Vec<Vec2> {
+    let mouse = window.single().ok().and_then(|w| {
+        let at = w.cursor_position()?;
+        let on_overlay = overlay.0.is_some_and(|area| area.contains(at));
+        (!on_overlay).then(|| at / w.size())
+    });
     hands.iter().map(|c| c.at).chain(mouse).collect()
 }
 
 /// The selection follows the shape under a cursor, nearest the camera
-/// first, and otherwise stays on the shape grabbed last.
+/// first, or the shape just grabbed, and stays put otherwise, so the
+/// cursor can leave for the overlay.
 pub(crate) fn select(
     mut selection: ResMut<Selection>,
     grab: Res<Grab>,
     hands: Query<&HandCursor>,
     window: Query<&Window, With<PrimaryWindow>>,
+    over_ui: Res<OverlayArea>,
     shapes: Query<(Entity, &Transform, &Shape), With<Grabbable>>,
     scene_camera: SceneCamera,
+    mut last_grab: Local<Option<Entity>>,
 ) {
     let hovered = Screen::of(&scene_camera).and_then(|screen| {
-        let cursors = cursors(&hands, &window);
+        let cursors = cursors(&hands, &window, &over_ui);
         let camera = scene_camera.single().ok()?.0.translation;
         shapes
             .iter()
@@ -47,7 +60,12 @@ pub(crate) fn select(
             })
             .map(|(entity, ..)| entity)
     });
-    selection.0 = hovered.or(grab.last.filter(|&e| shapes.contains(e)));
+    // A new grab selects what it took; otherwise the selection stays where
+    // it was until the cursor is on another shape.
+    let grabbed = grab.last.filter(|_| grab.last != *last_grab);
+    *last_grab = grab.last;
+    let kept = selection.0.filter(|&e| shapes.contains(e));
+    selection.0 = hovered.or(grabbed).or(kept);
 }
 
 /// The grid cell `at` is in, kept inside the Arena.
@@ -88,6 +106,7 @@ pub(crate) fn edit(
     mut grab: ResMut<Grab>,
     hands: Query<&HandCursor>,
     window: Query<&Window, With<PrimaryWindow>>,
+    over_ui: Res<OverlayArea>,
     shapes: Query<
         (
             Entity,
@@ -104,7 +123,7 @@ pub(crate) fn edit(
     let full = taken_at.len() >= arena.cap;
     if keys.just_pressed(KeyCode::KeyN) && !full {
         // The first cursor, else the middle of the view.
-        let cursor = cursors(&hands, &window)
+        let cursor = cursors(&hands, &window, &over_ui)
             .first()
             .copied()
             .unwrap_or(Vec2::splat(0.5));

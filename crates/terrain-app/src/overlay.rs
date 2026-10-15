@@ -5,7 +5,10 @@
 
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass, egui};
-use terrain_app::{Library, Material, Materials, PhysicsSettings, Requests, Selection, Tool};
+use terrain_app::{
+    Arena, Library, Material, Materials, OverlayArea, PhysicsSettings, Requests, Selection, Shape,
+    Tool,
+};
 
 pub struct OverlayPlugin;
 
@@ -44,17 +47,24 @@ fn show(
     mut presets: ResMut<Materials>,
     selection: Res<Selection>,
     mut made_of: Query<&mut Material>,
+    mut shapes: Query<&mut Shape>,
+    arena: Res<Arena>,
+    mut area: ResMut<OverlayArea>,
 ) -> Result {
+    let ctx = contexts.ctx_mut()?;
     if !overlay.open {
+        if area.0.is_some() {
+            area.0 = None;
+        }
         return Ok(());
     }
     let overlay = &mut *overlay;
-    egui::Window::new("Builder  (O hides)")
+    let shown = egui::Window::new("Builder  (O hides)")
         .default_pos([12.0, 90.0])
         .resizable(false)
         .vscroll(true)
         .default_height(420.0)
-        .show(contexts.ctx_mut()?, |ui| {
+        .show(ctx, |ui| {
             ui.heading("Tool");
             ui.horizontal(|ui| {
                 for (key, choice) in [
@@ -71,6 +81,31 @@ fn show(
                     }
                 }
             });
+            ui.label("[ and ] step the selected shape's roundness (Round) or taper (Taper).");
+            ui.separator();
+            ui.heading("Selected shape");
+            match selection.0.and_then(|e| shapes.get_mut(e).ok()) {
+                // Edited on a copy, so the mesh and collider are only rebuilt on a change.
+                Some(mut shape) => {
+                    let mut edited = *shape;
+                    let longest = arena.longest();
+                    for (axis, name) in ["width", "height", "depth"].iter().enumerate() {
+                        ui.add(
+                            egui::Slider::new(&mut edited.size[axis], 0.03..=longest)
+                                .suffix(" m")
+                                .text(*name),
+                        );
+                    }
+                    ui.add(egui::Slider::new(&mut edited.roundness, 0.0..=1.0).text("roundness (0 box, 1 cylinder)"));
+                    ui.add(egui::Slider::new(&mut edited.taper, 0.0..=1.0).text("taper (1 = point)"));
+                    if edited != *shape {
+                        *shape = edited;
+                    }
+                }
+                None => {
+                    ui.label("Nothing selected: point at a shape, or grab one.");
+                }
+            }
             ui.separator();
             ui.heading("Library");
             ui.horizontal(|ui| {
@@ -162,5 +197,13 @@ fn show(
                 });
             }
         });
+    // egui points are the window's logical pixels.
+    let drawn = shown.map(|s| {
+        let r = s.response.rect;
+        Rect::new(r.min.x, r.min.y, r.max.x, r.max.y)
+    });
+    if area.0 != drawn {
+        area.0 = drawn;
+    }
     Ok(())
 }

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Arena, Grabbable, HandCursor, Material, Materials, Placed, SceneCamera, Screen, Selection,
     Shape,
-    build::{cell_of, cells, cursors, middle_of, taken},
+    build::{OverlayArea, cell_of, cells, cursors, middle_of, taken},
 };
 
 /// A named build: shapes on grid cells, loose (not glued) once placed.
@@ -189,6 +189,7 @@ pub(crate) fn use_templates(
     shapes: Query<(Entity, &Transform, &Shape, &Material), With<Grabbable>>,
     hands: Query<&HandCursor>,
     window: Query<&Window, With<PrimaryWindow>>,
+    over_ui: Res<OverlayArea>,
     scene_camera: SceneCamera,
 ) {
     let Requests { save, stamp } = std::mem::take(&mut *requests);
@@ -247,7 +248,7 @@ pub(crate) fn use_templates(
     if (keys.just_pressed(KeyCode::KeyP) || stamp)
         && let Some(template) = library.templates.get(library.current)
     {
-        let cursor = cursors(&hands, &window)
+        let cursor = cursors(&hands, &window, &over_ui)
             .first()
             .copied()
             .unwrap_or(Vec2::splat(0.5));
