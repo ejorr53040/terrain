@@ -142,3 +142,55 @@ fn a_round_shape_tapers_into_a_cone() {
     assert!(solid_at(&mut h, Vec3::new(0.07, -0.07, 0.0)), "out to its rim");
     assert!(!solid_at(&mut h, Vec3::new(0.04, 0.05, 0.0)), "and narrows to a point");
 }
+
+/// A fresh scene that will pinch the middle cube and carry it right.
+fn copy_drag(h: &mut Harness) {
+    let right = Vec3::new(0.1, 0.0, 0.0);
+    let frames = [
+        // Long enough to press the keys before the pinch.
+        hold(&[Pose::open(ON_MIDDLE)], 2 * SETTLE),
+        hold(&[Pose::pinched(ON_MIDDLE)], SETTLE),
+        hold(&[Pose::pinched(ON_MIDDLE + right)], SETTLE),
+        hold(&[Pose::open(ON_MIDDLE + right)], SETTLE),
+    ]
+    .concat();
+    let mut fresh = Harness::with_cubes(frames, &[Vec3::ZERO]);
+    std::mem::swap(h, &mut fresh);
+}
+
+fn all_shapes(h: &mut Harness) -> Vec<(Vec3, terrain_app::Shape)> {
+    let world = h.app.world_mut();
+    world
+        .query_filtered::<(&Transform, &terrain_app::Shape), With<terrain_app::Grabbable>>()
+        .iter(world)
+        .map(|(t, s)| (t.translation, *s))
+        .collect()
+}
+
+#[test]
+fn a_pinch_with_the_copy_tool_carries_off_a_copy_and_leaves_the_original() {
+    let mut h = hovered_cube();
+    copy_drag(&mut h);
+    h.run(SETTLE);
+    // Round the original first, so the copy has something to copy.
+    h.press(KeyCode::Digit2).press(KeyCode::BracketRight).press(KeyCode::Digit4);
+    h.run_all();
+    h.run(SETTLE);
+    let shapes = all_shapes(&mut h);
+    assert_eq!(shapes.len(), 2, "one copy");
+    assert_near(h.cube_at(0), Vec3::ZERO);
+    let (copy_at, copy) = shapes.into_iter().find(|(at, _)| at.x > 0.1).expect("a copy carried right");
+    assert_eq!(copy, h.shape(), "the copy has the original's parameters");
+    assert!(copy_at.distance(Vec3::ZERO) >= 0.149, "the copy was let go overlapping, at {copy_at}");
+}
+
+#[test]
+fn copy_is_refused_when_the_arena_is_full() {
+    let mut h = hovered_cube();
+    copy_drag(&mut h);
+    h.app.world_mut().resource_mut::<terrain_app::Arena>().cap = 1;
+    h.run(SETTLE).press(KeyCode::Digit4);
+    h.run_all();
+    assert_eq!(all_shapes(&mut h).len(), 1, "no copy past the cap");
+    assert_near(h.cube_at(0), Vec3::ZERO);
+}

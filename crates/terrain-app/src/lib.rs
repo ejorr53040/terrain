@@ -176,6 +176,7 @@ impl Plugin for GrabPlugin {
                 reset,
                 sync_cursors,
                 drive_grab,
+                settle_copies,
                 build::select,
                 build::edit,
                 tools::use_tools,
@@ -287,6 +288,19 @@ fn remember_start(
         commands
             .entity(entity)
             .insert((Start(*transform, *shape), RigidBody::Dynamic));
+    }
+}
+
+/// A copy still being carried off its original.
+#[derive(Component)]
+struct Copying;
+
+/// Makes a copy solid once it's let go.
+fn settle_copies(mut commands: Commands, grab: Res<Grab>, copies: Query<Entity, With<Copying>>) {
+    for entity in &copies {
+        if grab.held.iter().all(|held| held.entity != entity) {
+            commands.entity(entity).remove::<(Sensor, Copying)>();
+        }
     }
 }
 
@@ -483,7 +497,11 @@ impl Screen {
 /// one hand; a new pinch takes the free entity nearest the hand on screen.
 /// If a holding hand drops out of tracking its entity freezes, and is let
 /// go once the hand has been gone longer than `FORGET_AFTER_MS`.
+#[allow(clippy::too_many_arguments)]
 fn drive_grab(
+    mut commands: Commands,
+    tool: Res<Tool>,
+    looks: Query<&MeshMaterial3d<StandardMaterial>>,
     mut hands: ResMut<Hands>,
     mut grab: ResMut<Grab>,
     mut grabbables: Query<(Entity, &Transform, &mut Shape), With<Grabbable>>,
@@ -612,7 +630,20 @@ fn drive_grab(
                 .map(|(entity, t, shape)| (entity, (t, shape)))
                 .min_by_key(|(entity, _)| *entity),
         };
-        if let Some((entity, (transform, shape))) = nearest {
+        if let Some((mut entity, (transform, shape))) = nearest {
+            // Copy grabs a new shape in the original's place; it passes through
+            // the original until let go.
+            if *tool == Tool::Copy {
+                if grabbables.iter().count() >= arena.cap {
+                    continue;
+                }
+                let mut copy =
+                    commands.spawn((Grabbable, Placed, *shape, *transform, Sensor, Copying));
+                if let Ok(material) = looks.get(entity) {
+                    copy.insert(material.clone());
+                }
+                entity = copy.id();
+            }
             // The view each camera has, at the hand's and the entity's depth,
             // so a move fills the same share of the screen as the cursor's.
             let gain = match scene_camera.single() {
