@@ -215,11 +215,19 @@ impl Harness {
 
     pub fn with_source(source: impl HandSource + 'static) -> Self {
         let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
-                FRAME_MS,
-            )))
-            .add_plugins(GrabPlugin::new(source));
+        // What physics needs of `DefaultPlugins`, without a window.
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            bevy::asset::AssetPlugin::default(),
+        ))
+        .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            FRAME_MS,
+        )))
+        .add_plugins(GrabPlugin::new(source));
+        // `App::run` does this; physics sets up some resources here.
+        app.finish();
+        app.cleanup();
         let cube = app
             .world_mut()
             .spawn((Transform::default(), Grabbable))

@@ -10,6 +10,7 @@ license = "MIT OR Apache-2.0"
 terrain-hands = { path = "crates/terrain-hands" }
 terrain-gestures = { path = "crates/terrain-gestures" }
 bevy = "0.19"
+avian3d = { version = "0.7", default-features = false, features = ["3d", "f32", "parry-f32", "parallel"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

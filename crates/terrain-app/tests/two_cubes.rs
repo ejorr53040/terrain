@@ -2,7 +2,7 @@ mod support;
 
 use bevy::prelude::*;
 use support::*;
-use terrain_app::{CUBE_STARTS, GRAB_GAIN};
+use terrain_app::CUBE_STARTS;
 
 /// A scene of two cubes, left and right of the middle.
 const LEFT_CUBE: Vec3 = Vec3::new(-0.25, 0.0, 0.0);
@@ -10,11 +10,20 @@ const RIGHT_CUBE: Vec3 = Vec3::new(0.25, 0.0, 0.0);
 /// Hands held out in front of the camera, one on each side of the view.
 const LEFT_HAND: Vec3 = Vec3::new(-0.12, 0.0, 0.5);
 const RIGHT_HAND: Vec3 = Vec3::new(0.12, 0.0, 0.5);
-/// A hand's move up or down...
-const UP: Vec3 = Vec3::new(0.0, 0.10, 0.0);
-const DOWN: Vec3 = Vec3::new(0.0, -0.10, 0.0);
-/// ...and how far that moves the cube it holds.
-const GAIN_UP: Vec3 = Vec3::new(0.0, GRAB_GAIN * 0.10, 0.0);
+/// A hand's move up or down, small enough that the cube it carries stays clear of the box.
+const UP: Vec3 = Vec3::new(0.0, 0.05, 0.0);
+const DOWN: Vec3 = Vec3::new(0.0, -0.05, 0.0);
+
+/// Asserts a cube that started at `start` was carried straight along `hand_moved`,
+/// at least as far as the hand went (the scene amplifies hand motion).
+fn assert_carried(actual: Vec3, start: Vec3, hand_moved: Vec3) {
+    let moved = actual - start;
+    assert!(
+        moved.normalize().abs_diff_eq(hand_moved.normalize(), 0.01)
+            && moved.length() >= hand_moved.length(),
+        "cube from {start} should be carried along {hand_moved}, is at {actual}"
+    );
+}
 
 #[test]
 fn each_hand_moves_its_own_cube_at_the_same_time() {
@@ -42,8 +51,8 @@ fn each_hand_moves_its_own_cube_at_the_same_time() {
         &[LEFT_CUBE, RIGHT_CUBE],
     );
     h.run_all();
-    assert_near(h.cube_at(0), LEFT_CUBE + GAIN_UP);
-    assert_near(h.cube_at(1), RIGHT_CUBE - GAIN_UP);
+    assert_carried(h.cube_at(0), LEFT_CUBE, UP);
+    assert_carried(h.cube_at(1), RIGHT_CUBE, DOWN);
 }
 
 #[test]
@@ -60,7 +69,7 @@ fn a_pinch_takes_the_free_cube_nearest_the_hand_on_screen() {
         );
         h.run_all();
         let start = [LEFT_CUBE, RIGHT_CUBE];
-        assert_near(h.cube_at(taken), start[taken] + GAIN_UP);
+        assert_carried(h.cube_at(taken), start[taken], UP);
         assert_near(h.cube_at(left_alone), start[left_alone]);
     }
 }
@@ -88,7 +97,7 @@ fn a_cube_already_held_is_passed_over_for_the_free_one() {
     );
     h.run_all();
     assert_near(h.cube_at(0), LEFT_CUBE);
-    assert_near(h.cube_at(1), RIGHT_CUBE + GAIN_UP);
+    assert_carried(h.cube_at(1), RIGHT_CUBE, UP);
 }
 
 #[test]
@@ -142,8 +151,11 @@ fn across_the_apps_row_of_five_each_cube_is_grabbed_by_the_hand_in_front_of_it()
         );
         h.run_all();
         for (j, start) in CUBE_STARTS.into_iter().enumerate() {
-            let expected = if j == i { start + GAIN_UP } else { start };
-            assert_near(h.cube_at(j), expected);
+            if j == i {
+                assert_carried(h.cube_at(j), start, UP);
+            } else {
+                assert_near(h.cube_at(j), start);
+            }
         }
     }
 }
