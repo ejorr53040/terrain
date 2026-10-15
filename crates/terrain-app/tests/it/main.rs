@@ -4,6 +4,7 @@
 mod support;
 mod arena;
 mod bounds;
+mod build;
 mod calibration;
 mod cursor;
 mod depth_rotation;

@@ -1,5 +1,6 @@
 //! The terrain scene: hands from a `HandSource` pick up and move `Grabbable` entities.
 
+mod build;
 mod calibration;
 mod cursor;
 mod preview;
@@ -7,12 +8,13 @@ mod preview;
 use std::{path::PathBuf, sync::Mutex};
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{ecs::entity_disabling::Disabled, prelude::*};
 use terrain_hands::{
     CameraModel, FORGET_AFTER_MS, HandFrame, HandSource, HandState, HandStateEstimator,
     TrackedHands,
 };
 
+pub use build::{Placed, Selection};
 pub use calibration::{CALIBRATION_DISTANCE_M, Calibration, load_camera};
 pub use cursor::CursorPlugin;
 pub use preview::{DEFAULT_CAMERA, PreviewPlugin, start_tracking};
@@ -152,6 +154,7 @@ impl Plugin for GrabPlugin {
         .init_resource::<ButtonInput<KeyCode>>()
         .init_resource::<Grab>()
         .init_resource::<Arena>()
+        .init_resource::<Selection>()
         // No gravity and no momentum: things only move while held or shoved.
         .add_plugins(PhysicsPlugins::default())
         .insert_resource(Gravity(Vec3::ZERO))
@@ -166,6 +169,8 @@ impl Plugin for GrabPlugin {
                 reset,
                 sync_cursors,
                 drive_grab,
+                build::select,
+                build::edit,
             )
                 .chain(),
         );
@@ -184,8 +189,10 @@ pub(crate) struct Hands {
 
 /// What each hand is holding: at most one entity per hand, one hand per entity.
 #[derive(Resource, Default)]
-struct Grab {
+pub(crate) struct Grab {
     held: Vec<Held>,
+    /// The entity most recently picked up.
+    last: Option<Entity>,
 }
 
 /// A grab in progress: what's held, by which hand, where the hand and the
@@ -303,19 +310,29 @@ fn steer(
     }
 }
 
-/// `R`, or a fresh calibration, puts every `Grabbable` back where it
-/// started and lets go of it.
+/// `R`, or a fresh calibration, puts the scene back as it began: every
+/// `Grabbable` it began with where it started, deleted ones too, placed ones
+/// gone, and nothing held.
 fn reset(
+    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     mut calibration: ResMut<Calibration>,
     mut grab: ResMut<Grab>,
-    mut grabbables: Query<(&mut Transform, &Start)>,
+    mut grabbables: Query<(Entity, &mut Transform, &Start, Has<Placed>, Has<Disabled>)>,
 ) {
     let calibrated = std::mem::take(&mut calibration.reset_scene);
     if keys.just_pressed(KeyCode::KeyR) || calibrated {
         grab.held.clear();
-        for (mut transform, start) in &mut grabbables {
+        grab.last = None;
+        for (entity, mut transform, start, placed, deleted) in &mut grabbables {
+            if placed {
+                commands.entity(entity).despawn();
+                continue;
+            }
             *transform = start.0;
+            if deleted {
+                commands.entity(entity).remove::<Disabled>();
+            }
         }
     }
 }
@@ -359,8 +376,73 @@ fn sync_cursors(
 }
 
 /// The camera the scene is drawn from, for where things appear on screen.
-type SceneCamera<'w, 's> =
+pub(crate) type SceneCamera<'w, 's> =
     Query<'w, 's, (&'static Transform, &'static Projection), (With<Camera3d>, Without<Grabbable>)>;
+
+/// The scene camera's view. Points on screen are in clip space with x
+/// scaled by the aspect ratio, so distances are as the eye sees them; a hand
+/// or cursor's place in the view is 0 to 1 across and down from the top left.
+pub(crate) struct Screen {
+    clip_from_world: Mat4,
+    aspect: f32,
+}
+
+impl Screen {
+    /// `None` without a scene camera. The scene has one 3D camera, unparented.
+    pub(crate) fn of(scene_camera: &SceneCamera) -> Option<Self> {
+        let (camera, projection) = scene_camera.single().ok()?;
+        Some(Self {
+            clip_from_world: projection.get_clip_from_view() * camera.to_matrix().inverse(),
+            aspect: match projection {
+                Projection::Perspective(p) => p.aspect_ratio,
+                _ => 1.0,
+            },
+        })
+    }
+
+    /// Where a point lands on screen; `None` behind the camera.
+    pub(crate) fn project(&self, at: Vec3) -> Option<Vec2> {
+        let clip = self.clip_from_world * at.extend(1.0);
+        (clip.w > 0.0).then(|| clip.truncate().truncate() / clip.w * Vec2::new(self.aspect, 1.0))
+    }
+
+    /// A place in the view, in the same terms as a projected point.
+    pub(crate) fn pointing(&self, in_view: Vec2) -> Vec2 {
+        Vec2::new(2.0 * in_view.x - 1.0, 1.0 - 2.0 * in_view.y) * Vec2::new(self.aspect, 1.0)
+    }
+
+    /// Whether `in_view` is on a cube-shaped entity's outline on screen.
+    pub(crate) fn covers(&self, t: &Transform, in_view: Vec2) -> bool {
+        // ponytail: the outline is the corners' bounding rectangle, a little
+        // generous on a turned cube; use their convex hull if that misfires.
+        let corners = (0..8).filter_map(|i| {
+            let corner = Vec3::new(
+                if i & 1 == 0 { -0.5 } else { 0.5 },
+                if i & 2 == 0 { -0.5 } else { 0.5 },
+                if i & 4 == 0 { -0.5 } else { 0.5 },
+            );
+            self.project(t.transform_point(corner * CUBE_SIZE))
+        });
+        let (min, max) = corners.fold((Vec2::INFINITY, Vec2::NEG_INFINITY), |(min, max), c| {
+            (min.min(c), max.max(c))
+        });
+        let pointing = self.pointing(in_view);
+        pointing.cmpge(min).all() && pointing.cmple(max).all()
+    }
+
+    /// Where the line of sight through `in_view` meets the plane `z = 0`,
+    /// which faces the camera through the middle of the scene.
+    pub(crate) fn on_middle_plane(&self, in_view: Vec2) -> Option<Vec3> {
+        let world_from_clip = self.clip_from_world.inverse();
+        let ndc = self.pointing(in_view) / Vec2::new(self.aspect, 1.0);
+        // Two depths in front of the camera, finite under Bevy's reversed-z projection.
+        let near = world_from_clip.project_point3(ndc.extend(1.0));
+        let far = world_from_clip.project_point3(ndc.extend(0.5));
+        let along = far - near;
+        let t = -near.z / along.z;
+        (t.is_finite() && t > 0.0).then(|| near + t * along)
+    }
+}
 
 /// Relative clutch: while pinched, a held entity moves by its hand's motion
 /// since the pinch began, times `GRAB_GAIN`, and turns by the hand's turn
@@ -449,50 +531,20 @@ fn drive_grab(
             transform.scale = held.target.scale;
         }
     }
-    // Screen width over height, so distances on screen are as the eye sees them.
-    let aspect = match scene_camera.single() {
-        Ok((_, Projection::Perspective(p))) => p.aspect_ratio,
-        _ => 1.0,
-    };
-    // Where a point lands on screen, in clip space with x scaled by `aspect`;
-    // `None` behind the camera. The scene has one 3D camera, unparented.
-    let on_screen = scene_camera.single().ok().map(|(camera, projection)| {
-        let clip_from_world = projection.get_clip_from_view() * camera.to_matrix().inverse();
-        move |at: Vec3| {
-            let clip = clip_from_world * at.extend(1.0);
-            (clip.w > 0.0).then(|| clip.truncate().truncate() / clip.w * Vec2::new(aspect, 1.0))
-        }
-    });
+    let screen = Screen::of(&scene_camera);
     for hand in frame.hands.iter().filter(|h| h.pinch_started) {
         if grab.held.iter().any(|held| {
             held.hand.id == hand.id || held.second.as_ref().is_some_and(|s| s.hand.id == hand.id)
         }) {
             continue;
         }
-        // The hand's place on screen, in the same terms as a projected point.
-        let pointing = Vec2::new(2.0 * hand.in_image.x - 1.0, 1.0 - 2.0 * hand.in_image.y)
-            * Vec2::new(aspect, 1.0);
         // On an entity held by one hand only: the pinch joins in to stretch it.
-        let joined = on_screen.as_ref().and_then(|project| {
+        let joined = screen.as_ref().and_then(|screen| {
             grab.held.iter_mut().find(|held| {
                 held.second.is_none()
-                    && grabbables.get(held.entity).is_ok_and(|(_, t)| {
-                        // ponytail: the outline is the corners' bounding rectangle, a little
-                        // generous on a turned cube; use their convex hull if that misfires.
-                        let corners = (0..8).filter_map(|i| {
-                            let corner = Vec3::new(
-                                if i & 1 == 0 { -0.5 } else { 0.5 },
-                                if i & 2 == 0 { -0.5 } else { 0.5 },
-                                if i & 4 == 0 { -0.5 } else { 0.5 },
-                            );
-                            project(t.transform_point(corner * CUBE_SIZE))
-                        });
-                        let (min, max) = corners
-                            .fold((Vec2::INFINITY, Vec2::NEG_INFINITY), |(min, max), c| {
-                                (min.min(c), max.max(c))
-                            });
-                        pointing.cmpge(min).all() && pointing.cmple(max).all()
-                    })
+                    && grabbables
+                        .get(held.entity)
+                        .is_ok_and(|(_, t)| screen.covers(t, hand.in_image))
             })
         });
         if let Some(held) = joined {
@@ -514,10 +566,11 @@ fn drive_grab(
         let free = grabbables
             .iter()
             .filter(|(entity, _)| grab.held.iter().all(|held| held.entity != *entity));
-        let nearest = match &on_screen {
-            Some(project) => free
-                .filter_map(|(entity, t)| Some((entity, t, project(t.translation)?)))
+        let nearest = match &screen {
+            Some(screen) => free
+                .filter_map(|(entity, t)| Some((entity, t, screen.project(t.translation)?)))
                 .min_by(|(_, _, a), (_, _, b)| {
+                    let pointing = screen.pointing(hand.in_image);
                     a.distance(pointing).total_cmp(&b.distance(pointing))
                 })
                 .map(|(entity, t, _)| (entity, t)),
@@ -541,6 +594,7 @@ fn drive_grab(
                 }
                 _ => Vec3::splat(GRAB_GAIN),
             };
+            grab.last = Some(entity);
             grab.held.push(Held {
                 entity,
                 hand: *hand,

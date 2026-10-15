@@ -56,3 +56,11 @@ _Avoid_: Aim assist, magnetism, snapping
 **Arena**:
 The box shapes live in: its walls, the grid placed shapes snap to (0.15 m cells) and the most shapes it holds (64). Walls and stretch limits follow it when it changes.
 _Avoid_: Box, room, bounds
+
+**Shape**:
+A solid in the Arena that hands can grab. New ones are placed on the Arena's grid.
+_Avoid_: Cube, block, object
+
+**Selection**:
+The shape edits act on: the one under a cursor (a hand's or the mouse's), else the one grabbed last. It is outlined.
+_Avoid_: Focus, active shape

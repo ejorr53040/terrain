@@ -263,7 +263,7 @@ impl Harness {
                     .id()
             })
             .collect();
-        h.cube = h.cubes[0];
+        h.cube = h.cubes.first().copied().unwrap_or(Entity::PLACEHOLDER);
         h
     }
 
