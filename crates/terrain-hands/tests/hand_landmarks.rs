@@ -123,3 +123,15 @@ fn a_followed_hand_that_keeps_reading_as_the_other_hand_takes_that_label() {
     assert_eq!(labels[0], found.hand.handedness, "one misread: {labels:?}");
     assert_ne!(labels[5], found.hand.handedness, "six in a row: {labels:?}");
 }
+
+#[test]
+fn one_hand_followed_through_a_pinch_is_never_found_twice() {
+    // Webcam frames of one hand pinching, where the palm search used to add
+    // that hand again: its palm box lies inside the followed region.
+    let mut tracker = HandTracker::new(PALM_MODEL, LANDMARK_MODEL).unwrap();
+    for i in 185..=205 {
+        let fixture = Fixture::load(&format!("one_hand_pinching/f{i}.jpg"));
+        let tracked = tracker.track(fixture.image()).unwrap();
+        assert!(tracked.len() <= 1, "frame {i}: {} hands", tracked.len());
+    }
+}
