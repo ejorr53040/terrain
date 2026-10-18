@@ -104,9 +104,13 @@ pub enum Guard {
     /// The pointer has moved more than this far (screen widths) from where
     /// the gesture started.
     Moved(f32),
-    /// The pointer has moved more than this far (screen widths) in this
-    /// direction, more along it than across, within this long (ms) of
-    /// entering the state: a flick, not a drag.
+    /// The pointer has been more than this far (screen widths) from where
+    /// the gesture started for at least this long (ms): long enough that
+    /// a flick would already have fired.
+    MovedFor(f32, u64),
+    /// The pointer covered more than this far (screen widths) in this
+    /// direction, more along it than across, within the last this long
+    /// (ms), however long the hand was held first: a flick, not a drag.
     Flicked(Direction, f32, u64),
 }
 

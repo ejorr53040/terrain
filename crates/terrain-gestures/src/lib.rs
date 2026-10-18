@@ -10,6 +10,8 @@ pub use file::{
     DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, State, Transition,
 };
 
+use std::collections::VecDeque;
+
 use glam::Vec2;
 use serde::Deserialize;
 use terrain_hands::{FORGET_AFTER_MS, HandState};
@@ -130,7 +132,13 @@ struct Active {
     entered_ms: u64,
     /// Where the pointer was when the gesture started.
     at: Vec2,
+    /// Where the pointer has been lately (ms, screen), oldest first.
+    // ponytail: kept for TRAIL_MS, so a guard window longer than that sees only TRAIL_MS.
+    trail: VecDeque<(u64, Vec2)>,
 }
+
+/// How much of the pointer's path a gesture remembers (ms).
+const TRAIL_MS: u64 = 1000;
 
 /// Runs a gesture file on the hand with control.
 pub struct Engine {
@@ -250,6 +258,12 @@ impl Engine {
     /// gesture whose Pose has settled.
     fn step(&mut self, hand: &Hand, point: Vec2, t_ms: u64) -> Vec<Action> {
         let mut actions = Vec::new();
+        if let Some(active) = &mut self.active {
+            active.trail.push_back((t_ms, to_screen(hand.in_view)));
+            while active.trail.front().is_some_and(|&(t, _)| t_ms - t > TRAIL_MS) {
+                active.trail.pop_front();
+            }
+        }
         if let Some(active) = &self.active {
             let to = active
                 .state
@@ -275,6 +289,7 @@ impl Engine {
                     state: State::default(),
                     entered_ms: t_ms,
                     at: point,
+                    trail: VecDeque::from([(t_ms, to_screen(hand.in_view))]),
                 });
                 actions.extend(self.enter(&start, t_ms));
             }
@@ -288,15 +303,24 @@ impl Engine {
             Guard::Pose(pose, ms) => self.pose.0 == pose && t_ms.saturating_sub(self.pose.1) >= ms,
             Guard::After(ms) => t_ms.saturating_sub(active.entered_ms) >= ms,
             Guard::Moved(by) => moved(active, hand).length() > by,
+            Guard::MovedFor(by, ms) => {
+                // Where the pointer was `ms` ago: the newest point at least that old.
+                let then = active.trail.iter().rev().find(|&&(t, _)| t_ms - t >= ms);
+                then.is_some_and(|&(_, p)| (p - active.at).length() > by)
+                    && moved(active, hand).length() > by
+            }
             Guard::Flicked(direction, by, ms) => {
-                let moved = moved(active, hand);
-                let (along, across) = match direction {
-                    Direction::Left => (-moved.x, moved.y),
-                    Direction::Right => (moved.x, moved.y),
-                    Direction::Up => (-moved.y, moved.x),
-                    Direction::Down => (moved.y, moved.x),
-                };
-                t_ms.saturating_sub(active.entered_ms) <= ms && along > by && along > across.abs()
+                let now = to_screen(hand.in_view);
+                active.trail.iter().filter(|&&(t, _)| t_ms - t <= ms).any(|&(_, p)| {
+                    let moved = now - p;
+                    let (along, across) = match direction {
+                        Direction::Left => (-moved.x, moved.y),
+                        Direction::Right => (moved.x, moved.y),
+                        Direction::Up => (-moved.y, moved.x),
+                        Direction::Down => (moved.y, moved.x),
+                    };
+                    along > by && along > across.abs()
+                })
             }
         }
     }

@@ -19,14 +19,14 @@
                     on: [
                         // A quick flick is a herdr command: Alt + left/right
                         // steps through tabs, Alt + up/down through workspaces.
-                        (when: [Flicked(Left, 0.1, 200)], to: "tab_left"),
-                        (when: [Flicked(Right, 0.1, 200)], to: "tab_right"),
-                        (when: [Flicked(Up, 0.1, 200)], to: "workspace_up"),
-                        (when: [Flicked(Down, 0.1, 200)], to: "workspace_down"),
+                        (when: [Flicked(Left, 0.15, 100)], to: "tab_left"),
+                        (when: [Flicked(Right, 0.15, 100)], to: "tab_right"),
+                        (when: [Flicked(Up, 0.15, 100)], to: "workspace_up"),
+                        (when: [Flicked(Down, 0.15, 100)], to: "workspace_down"),
                         (when: [Pose(Open, 30)], to: "tap"),
                         (when: [Pose(Fist, 30)], to: "fist_forming"),
-                        // A move waits out the flick first.
-                        (when: [Moved(0.02), After(200)], to: "drag"),
+                        // A move waits out the flick first: keep MovedFor()'s ms equal to Flicked()'s.
+                        (when: [MovedFor(0.02, 100)], to: "drag"),
                         (when: [After(600)], to: "long_press"),
                     ],
                 ),
@@ -90,13 +90,13 @@
                     on: [
                         // A quick flick is a herdr command: Ctrl + Alt +
                         // h/j/k/l moves the focus to the next pane that way.
-                        (when: [Flicked(Left, 0.1, 200)], to: "pane_left"),
-                        (when: [Flicked(Right, 0.1, 200)], to: "pane_right"),
-                        (when: [Flicked(Up, 0.1, 200)], to: "pane_up"),
-                        (when: [Flicked(Down, 0.1, 200)], to: "pane_down"),
+                        (when: [Flicked(Left, 0.15, 100)], to: "pane_left"),
+                        (when: [Flicked(Right, 0.15, 100)], to: "pane_right"),
+                        (when: [Flicked(Up, 0.15, 100)], to: "pane_up"),
+                        (when: [Flicked(Down, 0.15, 100)], to: "pane_down"),
                         (when: [Pose(Open, 30)], to: "dropped"),
-                        // A move waits out the flick first.
-                        (when: [Moved(0.02), After(200)], to: "window_drag"),
+                        // A move waits out the flick first: keep MovedFor()'s ms equal to Flicked()'s.
+                        (when: [MovedFor(0.02, 100)], to: "window_drag"),
                         // Held still: a drag about to start.
                         (when: [After(600)], to: "window_drag"),
                     ],

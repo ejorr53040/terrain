@@ -189,7 +189,7 @@ finish() {
 # golden replays (#18). Re-running offers to keep clips already recorded.
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-TARGET=${CARGO_TARGET_DIR:-$HOME/cs/terrain/target}
+TARGET=${CARGO_TARGET_DIR:-$ROOT/target}
 REPLAY_CLIP=$TARGET/release/examples/replay_clip
 REPLAY_DESKTOP=$TARGET/release/examples/replay_desktop
 RAW=$HOME/.cache/terrain/clips/gestures
@@ -197,7 +197,7 @@ OUT=$ROOT/crates/terrain-desktop/tests/clips
 CAMERA=/dev/video0
 SECONDS_PER_CLIP=10
 
-TOTAL_STAGES=14
+TOTAL_STAGES=15
 
 # camera_free waits until no other program holds the camera.
 camera_free() {
@@ -422,26 +422,43 @@ t 7    $LOWER" \
 
 clip fist_flicks "Fist flicks (herdr panes)" \
 "Before recording: focus a herdr terminal split into panes.
+Flick the way you naturally would; don't slow down to be careful.
 $RAISE
-t 4    close the hand into a fist, flick it quickly ~10 cm left, open it
-t 5.5  fist, flick right, open
-t 7    fist, flick up, open
-t 8.5  fist, flick down, open" \
+Between flicks, open the hand and hold it still so each flick stands apart.
+t 2.5  make a fist and flick it ~10 cm LEFT, then open the hand
+t 4.5  fist, flick RIGHT, open
+t 6.5  fist, flick UP, open
+t 8.5  fist, flick DOWN, open" \
 "- the hand takes control
 - four pane moves, in order: Ctrl+Alt+H, Ctrl+Alt+L, Ctrl+Alt+K, Ctrl+Alt+J
-- no window drag (Super + Left), no left or right click"
+  (a flick covers 0.15 screen widths within 100 ms, however long the fist
+  was held first; a slower move becomes a window drag)
+- no left or right click"
 
 clip pinch_flicks "Pinch flicks (herdr tabs, workspaces)" \
 "Before recording: focus a herdr terminal with a few tabs.
+Flick the way you naturally would; don't slow down to be careful.
 $RAISE
-t 4    pinch, flick it quickly ~10 cm left, open
+t 4    pinch and flick ~10 cm left, then open the hand
 t 5.5  pinch, flick right, open
 t 7    pinch, flick up, open
 t 8.5  pinch, flick down, open" \
 "- the hand takes control
 - four steps, in order: Alt+Left, Alt+Right, Alt+Up, Alt+Down
-- no left click, no drag, no right click"
+  (same speed rule as fist flicks; a slower move becomes a drag)
+- no right click"
+
+clip slow_drags "Slow drags each way (no flicks)" \
+"Before recording: focus an empty desktop or a scratch window.
+$RAISE
+t 3–4  pinch, drag slowly ~10 cm left (about a second), open
+t 5–6  pinch, drag slowly right back, open
+t 7–8  pinch, drag slowly up, open
+t 8.5–9.5 pinch, drag slowly down, open" \
+"- the hand takes control
+- four drags (Press Left, the pointer moves, Release Left)
+- no Alt chords: slow moves never flick"
 
 finish
 note "Clips are in ${OUT#"$ROOT"/} (frames.json, golden.log, intent.md each)."
-note "Raw JPEGs are in $RAW. Tell Claude to check them for #16 and #18."
+note "Raw JPEGs are in $RAW. Tell Claude to check them (flicks: #28)."

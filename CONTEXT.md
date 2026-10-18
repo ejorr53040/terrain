@@ -19,7 +19,7 @@ A recognized pattern of poses and movement over time, such as a Tap, Drag or Lon
 _Avoid_: Command, motion
 
 **Flick**:
-A pinch or fist moved quickly in one direction (left, right, up, down) just after it closes, as opposed to the slower move of a Drag. Flicks send herdr's key chords.
+A pinch or fist moved quickly in one direction (left, right, up, down), however long it was held still first, as opposed to the slower move of a Drag. Flicks send herdr's key chords.
 _Avoid_: Swipe
 
 **Engagement**:

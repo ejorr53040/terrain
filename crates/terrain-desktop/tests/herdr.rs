@@ -59,15 +59,32 @@ fn a_slow_pinch_drag_still_drags() {
 }
 
 #[test]
-fn a_flick_shows_the_command_until_the_hand_opens() {
-    let by = Vec3::new(0.0, 0.12, 0.0);
-    let status = Script::default()
+fn a_pinch_held_still_then_flicked_still_flicks() {
+    let to = AHEAD + Vec3::new(-0.12, 0.0, 0.0);
+    let inputs = Script::default()
         .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Fist, 5)
-        .sweep(AHEAD, AHEAD + by, Grip::Fist, 3)
-        .hold(AHEAD + by, Grip::Fist, 5)
-        .status();
-    assert_eq!(status, Status::Gesture("✊ ↑ Pane".into()));
+        .hold(AHEAD, Grip::Pinch, 12)
+        .sweep(AHEAD, to, Grip::Pinch, 3)
+        .hold(to, Grip::Pinch, 5)
+        .hold(to, Grip::Open, 10)
+        .run();
+    assert_eq!(buttons(&inputs), chord(&[Button::Alt, Button::ArrowLeft]));
+}
+
+#[test]
+fn a_flick_shows_its_binding_until_the_hand_opens() {
+    let by = Vec3::new(0.0, 0.12, 0.0);
+    let flicked = |grip| {
+        Script::default()
+            .hold(AHEAD, Grip::Open, 20)
+            .hold(AHEAD, grip, 5)
+            .sweep(AHEAD, AHEAD + by, grip, 3)
+            .hold(AHEAD + by, grip, 5)
+    };
+    assert_eq!(flicked(Grip::Fist).status(), Status::Gesture("✊ ↑ Pane".into()));
+    assert_eq!(flicked(Grip::Pinch).status(), Status::Gesture("🤏 ↑ Workspace".into()));
+    let opened = flicked(Grip::Pinch).hold(AHEAD + by, Grip::Open, 10);
+    assert_eq!(opened.status(), Status::Pointing);
 }
 
 /// The hand raised open to take control, closed into `grip`, flicked by

@@ -52,7 +52,9 @@ fn a_fist_is_a_window_drag_once_it_moves() {
             .hold(AHEAD, Grip::Fist, 5)
     };
     assert_eq!(fist().status(), gesture("✊ Fist"));
-    let moved = fist().sweep(AHEAD, AHEAD + Vec3::new(0.05, 0.0, 0.0), Grip::Fist, 5);
+    let to = AHEAD + Vec3::new(0.05, 0.0, 0.0);
+    // Past the 100 ms a flick has to happen in.
+    let moved = fist().sweep(AHEAD, to, Grip::Fist, 5).hold(to, Grip::Fist, 4);
     assert_eq!(moved.status(), gesture("✊ Window drag"));
 }
 
