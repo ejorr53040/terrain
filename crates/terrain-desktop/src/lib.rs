@@ -65,8 +65,10 @@ impl DesktopControl {
     /// Where `hand`'s palm is in the camera's view, by its direction from
     /// the camera: normalized, x right, y down.
     fn in_view(&self, hand: &HandState) -> Vec2 {
+        // Positions come tilted level; the view is the camera's own frame.
+        let p = self.camera.tilt.inverse() * hand.position;
         // A palm at or behind the lens can't be: read it as far off view.
-        let p = hand.position.with_z(hand.position.z.max(1e-3));
+        let p = p.with_z(p.z.max(1e-3));
         let size = self.camera.view_size_at_1m() * p.z;
         Vec2::new(0.5 + p.x / size.x, 0.5 - p.y / size.y)
     }
