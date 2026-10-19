@@ -1,18 +1,24 @@
-//! terrain-blocks <crate dir>: the crate's structure as blocks on a 2D canvas.
-//! A thin egui layer on the Workspace; checked live with the mouse and with hands
-//! through terrain-desktop.
+//! terrain-blocks <crate dir>: the crate's infrastructure and structure as blocks on
+//! a 2D canvas. A thin egui layer on the Workspace; checked live with the mouse and
+//! with hands through terrain-desktop.
 
+mod files_view;
+mod functionality_view;
+mod look;
+
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use eframe::egui::{self, Color32, Pos2, Rect, RichText, Sense, pos2, vec2};
-use terrain_blocks::{Block, Id, MoveError, Workspace, cargo_check};
+use eframe::egui::{self, Pos2, Rect, RichText, pos2, vec2};
+use terrain_blocks::{Id, ItemRef, MoveError, System, Workspace, cargo_check};
 
 const FILE_WIDTH: f32 = 340.0;
-/// Space between file blocks laid out by default.
+const SYSTEM_WIDTH: f32 = 440.0;
+/// Space between blocks laid out by default.
 const GAP: f32 = 40.0;
-/// Label size; with the frame margins a block's header row is about 32 px, enough
+/// Label size; with the frame margins a block's header row is about 36 px, enough
 /// to hit with a hand pointer.
 const LABEL_SIZE: f32 = 16.0;
 const POLL: Duration = Duration::from_secs(1);
@@ -28,18 +34,38 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "terrain-blocks",
         eframe::NativeOptions::default(),
-        Box::new(|_| {
+        Box::new(|cc| {
+            look::install(&cc.egui_ctx);
+            let systems = ws.systems();
+            let view = if systems.is_empty() {
+                View::Files
+            } else {
+                View::Functionality
+            };
             let mut app = App {
                 ws,
-                // The first three columns of the default layout.
-                scene: Rect::from_min_size(
-                    pos2(-GAP, -GAP),
-                    vec2(3.0 * (FILE_WIDTH + GAP) + GAP, 600.0),
-                ),
+                systems,
+                view,
+                // The first three columns of each view's default layout.
+                scenes: [
+                    Rect::from_min_size(
+                        pos2(-GAP, -GAP),
+                        vec2(3.0 * (SYSTEM_WIDTH + GAP) + GAP, 600.0),
+                    ),
+                    Rect::from_min_size(
+                        pos2(-GAP, -GAP),
+                        vec2(3.0 * (FILE_WIDTH + GAP) + GAP, 600.0),
+                    ),
+                ],
                 selected: None,
                 dragging: None,
                 file_drag: None,
                 containers: Vec::new(),
+                item_drag: None,
+                system_drag: None,
+                system_rects: HashMap::new(),
+                renaming: None,
+                expanded: HashSet::new(),
                 message: String::new(),
                 check: Check::Running,
                 check_rx: None,
@@ -51,6 +77,12 @@ fn main() -> eframe::Result {
     )
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum View {
+    Functionality = 0,
+    Files = 1,
+}
+
 enum Check {
     Running,
     Pass,
@@ -59,14 +91,33 @@ enum Check {
 
 struct App {
     ws: Workspace,
-    /// The part of the canvas in view; zero until the first frame fits it.
-    scene: Rect,
+    /// The Functionality view's model, rebuilt after every change.
+    systems: Vec<System>,
+    view: View,
+    /// The part of the canvas in view, per view.
+    scenes: [Rect; 2],
+    /// The block whose code shows in the side panel.
     selected: Option<Id>,
+
+    // Files view.
     dragging: Option<Id>,
     /// Where the file block being dragged is, until it is let go and saved.
     file_drag: Option<Pos2>,
     /// Drop targets drawn this frame, outermost first: id, rect, centre y of each child.
     containers: Vec<(Id, Rect, Vec<f32>)>,
+
+    // Functionality view.
+    /// The item being dragged and its System.
+    item_drag: Option<(ItemRef, String)>,
+    /// The System being dragged and where it is, until it is let go and saved.
+    system_drag: Option<(String, Pos2)>,
+    /// Each System's rect last frame, for the lines between Systems.
+    system_rects: HashMap<String, Rect>,
+    /// The Capability being renamed, and the name so far.
+    renaming: Option<(usize, String)>,
+    /// Systems whose Unsorted tray is open.
+    expanded: HashSet<String>,
+
     message: String,
     check: Check,
     check_rx: Option<mpsc::Receiver<bool>>,
@@ -84,6 +135,7 @@ impl eframe::App for App {
             match self.ws.refresh() {
                 Ok(changed) if !changed.is_empty() => {
                     self.selected = None;
+                    self.reload_systems();
                     self.start_check();
                 }
                 Ok(_) => {}
@@ -93,7 +145,10 @@ impl eframe::App for App {
         // Keeps the poll and the check badge ticking while idle.
         ui.ctx().request_repaint_after(Duration::from_millis(250));
 
-        if ui.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
+        // Ctrl+Z undoes code moves; while renaming it belongs to the text field.
+        if self.renaming.is_none()
+            && ui.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z))
+        {
             self.undo();
         }
         let zoom = ui.input(|i| {
@@ -105,28 +160,50 @@ impl eframe::App for App {
                 1.0
             }
         });
-        if zoom != 1.0 && self.scene.is_positive() {
-            self.scene = Rect::from_center_size(self.scene.center(), self.scene.size() / zoom);
+        let scene = &mut self.scenes[self.view as usize];
+        if zoom != 1.0 && self.renaming.is_none() && scene.is_positive() {
+            *scene = Rect::from_center_size(scene.center(), scene.size() / zoom);
         }
 
+        let pal = look::palette(ui);
         egui::Panel::top("status").show(ui, |ui| {
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
-                let (badge, color) = match self.check {
-                    Check::Running => ("⏳ checking", Color32::GRAY),
-                    Check::Pass => ("✔ cargo check", Color32::from_rgb(80, 180, 100)),
-                    Check::Fail => ("✖ cargo check", Color32::from_rgb(220, 80, 80)),
-                };
-                ui.label(RichText::new(badge).size(LABEL_SIZE).color(color));
+                for (view, name) in [
+                    (View::Functionality, "Functionality"),
+                    (View::Files, "Files"),
+                ] {
+                    ui.selectable_value(
+                        &mut self.view,
+                        view,
+                        RichText::new(name).font(look::bold(15.0)),
+                    );
+                }
                 ui.separator();
-                ui.label(self.ws.root().display().to_string());
+                let (badge, color) = match self.check {
+                    Check::Running => ("⏳ checking", pal.dim),
+                    Check::Pass => ("✔ cargo check", pal.ok),
+                    Check::Fail => ("✖ cargo check", pal.err),
+                };
+                ui.label(
+                    RichText::new(badge)
+                        .font(look::bold(LABEL_SIZE))
+                        .color(color),
+                );
+                ui.separator();
+                ui.label(RichText::new(self.ws.root().display().to_string()).color(pal.dim));
                 ui.separator();
                 ui.label(&self.message);
             });
+            ui.add_space(4.0);
         });
         if let Some(text) = self.selected.as_ref().and_then(|id| self.ws.text(id)) {
             egui::Panel::right("code")
-                .default_size(420.0)
+                .default_size(460.0)
                 .show(ui, |ui| {
+                    ui.label(
+                        RichText::new("read-only · right-click a block for nvim").color(pal.dim),
+                    );
                     egui::ScrollArea::both().show(ui, |ui| {
                         ui.add(
                             egui::TextEdit::multiline(&mut &*text)
@@ -137,175 +214,44 @@ impl eframe::App for App {
                 });
         }
         egui::CentralPanel::default().show(ui, |ui| {
-            let mut scene_rect = self.scene;
+            let view = self.view;
+            let mut scene_rect = self.scenes[view as usize];
             egui::Scene::new()
                 .zoom_range(0.1..=3.0)
-                .show(ui, &mut scene_rect, |ui| self.canvas(ui));
-            self.scene = scene_rect;
+                .show(ui, &mut scene_rect, |ui| match view {
+                    View::Functionality => self.functionality_canvas(ui),
+                    View::Files => self.files_canvas(ui),
+                });
+            self.scenes[view as usize] = scene_rect;
         });
     }
 }
 
 impl App {
-    fn canvas(&mut self, ui: &mut egui::Ui) {
-        self.containers.clear();
+    /// The pointer in the canvas's own coordinates.
+    fn pointer(&self, ui: &egui::Ui) -> Option<Pos2> {
         let to_local = ui
             .ctx()
             .layer_transform_from_global(ui.layer_id())
             .unwrap_or_default();
-        let pointer = ui.ctx().pointer_latest_pos().map(|p| to_local * p);
-        let files = self.ws.files().to_vec();
-        let mut dropped = None;
-        let defaults = default_layout(&files);
-        for (i, file) in files.iter().enumerate() {
-            let id = Id(vec![i]);
-            let pos = match (self.dragging.as_ref() == Some(&id), self.file_drag) {
-                (true, Some(p)) => p,
-                _ => self
-                    .ws
-                    .position(&id)
-                    .map_or(defaults[i], |[x, y]| pos2(x, y)),
-            };
-            let max = Rect::from_min_size(pos, vec2(FILE_WIDTH, f32::INFINITY));
-            ui.scope_builder(egui::UiBuilder::new().max_rect(max), |ui| {
-                self.block(ui, file, id, &mut dropped);
-            });
-        }
-
-        let (Some(dragging), Some(p)) = (self.dragging.clone(), pointer) else {
-            return;
-        };
-        if dragging.0.len() > 1 {
-            if let Some((into, index, y, rect)) = self.drop_target(&dragging, p) {
-                let x = rect.x_range().shrink(6.0);
-                ui.painter().hline(
-                    x,
-                    y,
-                    egui::Stroke::new(3.0, Color32::from_rgb(90, 160, 255)),
-                );
-                if dropped.as_ref() == Some(&dragging) {
-                    self.drop(dragging.clone(), into, index);
-                }
-            }
-            let label = self.ws.block(&dragging).map(label).unwrap_or_default();
-            ui.painter().text(
-                p + vec2(14.0, 0.0),
-                egui::Align2::LEFT_CENTER,
-                label,
-                egui::FontId::proportional(LABEL_SIZE),
-                ui.visuals().strong_text_color(),
-            );
-        }
-        if dropped.is_some() {
-            if let (1, Some(at)) = (dragging.0.len(), self.file_drag)
-                && let Err(e) = self.ws.place(&dragging, [at.x, at.y])
-            {
-                self.message = format!("couldn't save the layout: {e}");
-            }
-            self.dragging = None;
-            self.file_drag = None;
-        }
+        ui.ctx().pointer_latest_pos().map(|p| to_local * p)
     }
 
-    /// Draws `b` and its stack; returns its rect.
-    fn block(&mut self, ui: &mut egui::Ui, b: &Block, id: Id, dropped: &mut Option<Id>) -> Rect {
-        let frame = egui::Frame::group(ui.style())
-            .fill(fill(b.kind, ui.visuals().dark_mode))
-            .inner_margin(6.0);
-        let inner = frame.show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            let color = if b.error {
-                Color32::from_rgb(220, 80, 80)
-            } else {
-                ui.visuals().strong_text_color()
-            };
-            let head = ui
-                .add(
-                    egui::Label::new(RichText::new(label(b)).size(LABEL_SIZE).color(color))
-                        .sense(Sense::click_and_drag())
-                        .selectable(false),
-                )
-                .on_hover_cursor(egui::CursorIcon::Grab);
-            if b.error {
-                ui.label("can't parse: left untouched");
-            }
-            let centers: Vec<f32> = b
-                .children
-                .iter()
-                .enumerate()
-                .map(|(j, child)| {
-                    let mut child_id = id.0.clone();
-                    child_id.push(j);
-                    self.block(ui, child, Id(child_id), dropped).center().y
-                })
-                .collect();
-            (head, centers)
-        });
-        let (head, centers) = inner.inner;
-        let rect = inner.response.rect;
-        if matches!(b.kind, "file" | "impl" | "trait" | "mod") && !b.error {
-            self.containers.push((id.clone(), rect, centers));
-        }
-
-        if head.drag_started() {
-            self.dragging = Some(id.clone());
-            self.file_drag = (b.kind == "file").then_some(rect.min);
-        }
-        if let (true, Some(at)) = (head.dragged(), self.file_drag.as_mut()) {
-            *at += head.drag_delta();
-        }
-        if head.drag_stopped() {
-            *dropped = Some(id.clone());
-        }
-        if head.clicked() {
-            self.selected = Some(id.clone());
-        }
-        if head.secondary_clicked() {
-            self.open_in_nvim(&id, b.line);
-        }
-        rect
+    fn reload_systems(&mut self) {
+        self.systems = self.ws.systems();
     }
 
-    /// The innermost container under `p` that `dragging` may go into, the index in its
-    /// stack, the insertion line's y and the container's rect.
-    fn drop_target(&self, dragging: &Id, p: Pos2) -> Option<(Id, usize, f32, Rect)> {
-        let (into, rect, centers) = self
-            .containers
-            .iter()
-            .rev()
-            .find(|(id, rect, _)| rect.contains(p) && !id.0.starts_with(&dragging.0))?;
-        let index = centers.iter().filter(|&&y| y < p.y).count();
-        let y = match (index.checked_sub(1).map(|i| centers[i]), centers.get(index)) {
-            (Some(a), Some(b)) => (a + b) / 2.0,
-            (None, Some(b)) => b - 12.0,
-            (Some(_), None) => rect.bottom() - 4.0,
-            (None, None) => rect.top() + 36.0,
-        };
-        Some((into.clone(), index, y, *rect))
-    }
-
-    fn drop(&mut self, block: Id, into: Id, index: usize) {
-        let (parent, own) = block.0.split_at(block.0.len() - 1);
-        if parent == into.0 && (index == own[0] || index == own[0] + 1) {
-            return; // Dropped where it already is.
-        }
-        match self.ws.move_block(&block, &into, index) {
-            Ok(()) => {
-                self.selected = None;
-                self.message = "moved".into();
-                self.start_check();
-            }
-            Err(e) => self.refused(e),
-        }
+    /// After a code move or undo: the files changed under every view.
+    fn code_changed(&mut self, message: &str) {
+        self.selected = None;
+        self.message = message.into();
+        self.reload_systems();
+        self.start_check();
     }
 
     fn undo(&mut self) {
         match self.ws.undo() {
-            Ok(true) => {
-                self.selected = None;
-                self.message = "undone".into();
-                self.start_check();
-            }
+            Ok(true) => self.code_changed("undone"),
             Ok(false) => self.message = "nothing to undo".into(),
             Err(e) => self.refused(e),
         }
@@ -316,6 +262,7 @@ impl App {
             MoveError::Stale(files) => {
                 // Pick up what changed so the next try works on the new text.
                 let _ = self.ws.refresh();
+                self.reload_systems();
                 format!(
                     "refused: {} changed on disk; re-read, try again",
                     files.join(", ")
@@ -350,53 +297,24 @@ impl App {
     }
 }
 
-/// Where each file block goes if it has no place in the sidecar: the shortest
-/// column of a grid about as wide as it is tall, in path order.
-// ponytail: heights are estimated from block counts (wrapped labels run taller);
-// measure last frame's rects if columns overlap in practice.
-fn default_layout(files: &[Block]) -> Vec<Pos2> {
-    let columns = (files.len() as f32).sqrt().ceil().max(1.0) as usize;
+/// Where blocks with no place in the sidecar go: each into the shortest column of
+/// a grid about as wide as it is tall, in order.
+// ponytail: Files view heights are estimates (wrapped labels run taller); measure
+// last frame's rects as the Functionality view does if file columns overlap.
+fn masonry(heights: &[f32], width: f32) -> Vec<Pos2> {
+    let columns = (heights.len() as f32).sqrt().ceil().max(1.0) as usize;
     let mut bottoms = vec![0.0_f32; columns];
-    files
+    heights
         .iter()
-        .map(|file| {
+        .map(|h| {
             let c = (0..columns)
                 .min_by(|&a, &b| bottoms[a].total_cmp(&bottoms[b]))
                 .unwrap();
-            let at = pos2(c as f32 * (FILE_WIDTH + GAP), bottoms[c]);
-            bottoms[c] += estimated_height(file) + GAP;
+            let at = pos2(c as f32 * (width + GAP), bottoms[c]);
+            bottoms[c] += h + GAP;
             at
         })
         .collect()
-}
-
-/// A header row plus the frame's margins, and the stack inside.
-fn estimated_height(b: &Block) -> f32 {
-    34.0 + b
-        .children
-        .iter()
-        .map(|c| estimated_height(c) + 4.0)
-        .sum::<f32>()
-}
-
-fn label(b: &Block) -> String {
-    if b.kind == "file" {
-        b.name.clone()
-    } else {
-        format!("{} {}", b.kind, b.name)
-    }
-}
-
-fn fill(kind: &str, dark: bool) -> Color32 {
-    let (r, g, b) = match kind {
-        "file" => (120, 120, 130),
-        "fn" => (70, 130, 200),
-        "struct" | "enum" | "type" => (190, 140, 60),
-        "impl" | "trait" => (140, 90, 190),
-        "mod" => (70, 160, 120),
-        _ => (150, 150, 150),
-    };
-    Color32::from_rgba_unmultiplied(r, g, b, if dark { 60 } else { 45 })
 }
 
 #[cfg(test)]
@@ -404,23 +322,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unplaced_files_fill_the_shortest_column_of_a_square_ish_grid() {
-        let dir = tempfile::tempdir().unwrap();
-        let src = dir.path().join("src");
-        std::fs::create_dir(&src).unwrap();
-        // Two one-item files, then a tall file and a short one: 4 files, 2 columns.
-        std::fs::write(src.join("a.rs"), "fn a() {}\n").unwrap();
-        std::fs::write(src.join("b.rs"), "fn b() {}\n").unwrap();
-        std::fs::write(src.join("c.rs"), "fn c1() {}\nfn c2() {}\nfn c3() {}\n").unwrap();
-        std::fs::write(src.join("d.rs"), "fn d() {}\n").unwrap();
-        let ws = Workspace::open(dir.path()).unwrap();
+    fn unplaced_blocks_fill_the_shortest_column_of_a_square_ish_grid() {
+        // Two short blocks, then a tall one and a short one: 4 blocks, 2 columns.
+        let at = masonry(&[40.0, 40.0, 120.0, 40.0], 100.0);
 
-        let at = default_layout(ws.files());
-
-        let col = FILE_WIDTH + GAP;
+        let col = 100.0 + GAP;
         assert_eq!((at[0].x, at[0].y, at[1].x, at[1].y), (0.0, 0.0, col, 0.0));
-        assert_eq!(at[2].x, 0.0, "a tie goes to the first column");
-        assert_eq!(at[3].x, col, "b's column is now the shorter one");
-        assert!(at[2].y > 0.0 && at[3].y == at[2].y);
+        assert_eq!(
+            (at[2].x, at[2].y),
+            (0.0, 40.0 + GAP),
+            "a tie goes to the first column"
+        );
+        assert_eq!(
+            (at[3].x, at[3].y),
+            (col, 40.0 + GAP),
+            "the second column is now the shorter one"
+        );
     }
 }

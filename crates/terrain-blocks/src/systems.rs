@@ -22,6 +22,8 @@ pub struct System {
     /// This System's own copy of each Library it uses: visible Crate dependencies by
     /// name, then Outside systems in sidecar order.
     pub libraries: Vec<Library>,
+    /// This System's plumbing Crate dependencies, and whether each is pinned to show.
+    pub plumbing: Vec<(String, bool)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -153,6 +155,13 @@ impl Workspace {
                             },
                         }),
                 );
+                let mut plumbing: Vec<(String, bool)> = m
+                    .deps
+                    .iter()
+                    .filter(|(dep, _)| PLUMBING.contains(&dep.as_str()))
+                    .map(|(dep, _)| (dep.clone(), self.sidecar.pinned.contains(dep)))
+                    .collect();
+                plumbing.sort();
                 let mut unsorted = self.items_of(&m.name);
                 let mut capabilities = Vec::new();
                 for (index, saved) in self.sidecar.capabilities.iter().enumerate() {
@@ -192,6 +201,7 @@ impl Workspace {
                         .map(|(dep, _)| dep.clone())
                         .collect(),
                     libraries,
+                    plumbing,
                 }
             })
             .collect();

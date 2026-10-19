@@ -66,8 +66,16 @@ fn each_system_shows_its_own_libraries_with_plumbing_hidden_until_pinned() {
     );
     assert!(libraries(&ws, "fleet-proto").is_empty());
 
+    let plumbing = |ws: &Workspace| ws.systems()[1].plumbing.clone();
+    assert_eq!(
+        plumbing(&ws),
+        [("serde".to_string(), false)],
+        "hidden plumbing is listed for pinning"
+    );
+
     ws.pin("serde", true).unwrap();
     assert_eq!(libraries(&ws, "fleet-proto"), ["serde"]);
+    assert_eq!(plumbing(&ws), [("serde".to_string(), true)]);
     assert_eq!(
         libraries(&Workspace::open(dir.path()).unwrap(), "fleet-node"),
         ["serde", "sha2", "tokio", "Firecracker (vm)"]
