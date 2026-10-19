@@ -13,3 +13,7 @@ terrain-blocks shows a Rust crate as blocks parsed from the files on disk, and a
 - A move only moves text. `use` paths and call sites are not fixed; the `cargo check` badge shows when a move broke something.
 - Edits made outside the app win: a move is refused if a file it touches changed on disk since it was read, and changed files are re-read about every second.
 - Undo is an in-memory stack of file text, and git is the deeper undo.
+
+## Amended 2026-10-19 (#56)
+
+The sidecar now also holds the Functionality view: System positions, Capabilities (item references by file, kind and name), Outside systems and pinned crates. It still never holds code, and grouping never changes a `.rs` file: Capabilities are a view, chosen over grouping by moving items into modules, which would rewrite `use` paths on every regroup. An item a Capability refers to that no longer resolves goes back to Unsorted with a missing note, rather than being matched by guesswork.
