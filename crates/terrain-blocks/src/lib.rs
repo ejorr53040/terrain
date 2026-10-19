@@ -9,6 +9,9 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Node, Parser};
 
+mod systems;
+pub use systems::{Capability, Item, ItemRef, Library, LibraryKind, System};
+
 /// A file, container or item, with its stack of blocks inside.
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -50,19 +53,35 @@ pub struct Workspace {
     texts: Vec<String>,
     /// Per move, the earlier text of each file it touched, by name (refresh renumbers files).
     undo: Vec<Vec<(String, String)>>,
-    /// Canvas position of each placed file block, by name; the sidecar's contents.
-    layout: BTreeMap<String, [f32; 2]>,
+    /// The user's view of the crate, saved in the sidecar.
+    sidecar: Sidecar,
+    /// Every crate in the workspace, re-read on refresh.
+    manifests: Vec<systems::Manifest>,
 }
 
 const SIDECAR: &str = ".terrain-blocks.ron";
 
+/// What the sidecar holds: the user's view of the crate, never code (ADR 0007).
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+struct Sidecar {
+    /// Canvas position of each placed file block, by file name.
+    files: BTreeMap<String, [f32; 2]>,
+    /// Canvas position of each placed System, by crate name.
+    systems: BTreeMap<String, [f32; 2]>,
+    capabilities: Vec<systems::SavedCapability>,
+    outside: Vec<systems::OutsideSystem>,
+    /// Plumbing crates the user wants shown anyway.
+    pinned: Vec<String>,
+}
+
 impl Workspace {
     pub fn open(root: &Path) -> io::Result<Workspace> {
-        let layout = match fs::read_to_string(root.join(SIDECAR)) {
+        let sidecar = match fs::read_to_string(root.join(SIDECAR)) {
             Ok(text) => {
                 ron::from_str(&text).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
             }
-            Err(e) if e.kind() == io::ErrorKind::NotFound => BTreeMap::new(),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Sidecar::default(),
             Err(e) => return Err(e),
         };
         let mut ws = Workspace {
@@ -70,7 +89,8 @@ impl Workspace {
             files: Vec::new(),
             texts: Vec::new(),
             undo: Vec::new(),
-            layout,
+            sidecar,
+            manifests: Vec::new(),
         };
         ws.refresh()?;
         Ok(ws)
@@ -78,7 +98,8 @@ impl Workspace {
 
     /// Where a file block sits on the canvas, if it has been placed.
     pub fn position(&self, file: &Id) -> Option<[f32; 2]> {
-        self.layout
+        self.sidecar
+            .files
             .get(&self.files.get(*file.0.first()?)?.name)
             .copied()
     }
@@ -86,8 +107,12 @@ impl Workspace {
     /// Put a file block at `at` on the canvas and save the sidecar.
     pub fn place(&mut self, file: &Id, at: [f32; 2]) -> io::Result<()> {
         let name = self.files[file.0[0]].name.clone();
-        self.layout.insert(name, at);
-        let text = ron::ser::to_string_pretty(&self.layout, Default::default())
+        self.sidecar.files.insert(name, at);
+        self.save_sidecar()
+    }
+
+    fn save_sidecar(&self) -> io::Result<()> {
+        let text = ron::ser::to_string_pretty(&self.sidecar, Default::default())
             .map_err(io::Error::other)?;
         fs::write(self.root.join(SIDECAR), text)
     }
@@ -122,6 +147,7 @@ impl Workspace {
         }
         changed.sort();
         (self.files, self.texts) = (files, texts);
+        self.manifests = systems::read_manifests(&self.root)?;
         Ok(changed)
     }
 
