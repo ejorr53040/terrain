@@ -50,3 +50,25 @@ _Avoid_: Widget, element, hotspot
 **Assist**:
 Help in landing on targets: friction slows the pointer over a target while the hand is aiming, and a tap near a target snaps to it.
 _Avoid_: Aim assist, magnetism, snapping
+
+### Blocks
+
+**Block**:
+A file, inline module, `impl`, `trait` or item of a Rust crate, shown with its kind and name. An item's block includes its doc comments, attributes and leading comments.
+_Avoid_: Node, card, tile
+
+**Container**:
+A block that holds other blocks: a file, an inline module, an `impl` or a `trait`.
+_Avoid_: Parent, group
+
+**Stack**:
+The blocks directly inside a container, in source order. A block's place in its stack is its place in the file.
+_Avoid_: List, children, column
+
+**Canvas**:
+The 2D surface on which file blocks float. Only file blocks have a free position; every other block lives in a stack.
+_Avoid_: Board, workspace, scene
+
+**Sidecar**:
+The file in the crate root that remembers where each file block sits on the canvas, and nothing else.
+_Avoid_: Layout file, project file, config
