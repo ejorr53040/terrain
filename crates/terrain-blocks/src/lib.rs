@@ -25,8 +25,8 @@ pub struct Block {
 }
 
 /// Where a block is: its file's index, then its index in each stack down to it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Id(Vec<usize>);
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Id(pub Vec<usize>);
 
 #[derive(Debug)]
 pub enum MoveError {
@@ -144,6 +144,11 @@ impl Workspace {
         let (file, rest) = id.0.split_first()?;
         rest.iter()
             .try_fold(self.files.get(*file)?, |b, &i| b.children.get(i))
+    }
+
+    /// The block's source text, leading comments included.
+    pub fn text(&self, id: &Id) -> Option<&str> {
+        Some(&self.texts[*id.0.first()?][self.block(id)?.span.clone()])
     }
 
     /// Move `block` with its comments and children into `into`'s stack, before the
