@@ -128,6 +128,13 @@ fn a_followed_hand_that_keeps_reading_as_the_other_hand_takes_that_label() {
 fn one_hand_followed_through_a_pinch_is_never_found_twice() {
     // Webcam frames of one hand pinching, where the palm search used to add
     // that hand again: its palm box lies inside the followed region.
+    // ponytail: the frames show the user, so they're gitignored and kept
+    // locally only (backup ~/.cache/terrain/fixtures); a fresh clone skips.
+    let frames = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hands/one_hand_pinching");
+    if !std::path::Path::new(frames).exists() {
+        eprintln!("skipped: no local webcam frames in {frames}");
+        return;
+    }
     let mut tracker = HandTracker::new(PALM_MODEL, LANDMARK_MODEL).unwrap();
     for i in 185..=205 {
         let fixture = Fixture::load(&format!("one_hand_pinching/f{i}.jpg"));
