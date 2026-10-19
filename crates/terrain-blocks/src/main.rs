@@ -10,6 +10,8 @@ use eframe::egui::{self, Color32, Pos2, Rect, RichText, Sense, pos2, vec2};
 use terrain_blocks::{Block, Id, MoveError, Workspace, cargo_check};
 
 const FILE_WIDTH: f32 = 340.0;
+/// Space between file blocks laid out by default.
+const GAP: f32 = 40.0;
 /// Label size; with the frame margins a block's header row is about 32 px, enough
 /// to hit with a hand pointer.
 const LABEL_SIZE: f32 = 16.0;
@@ -29,7 +31,11 @@ fn main() -> eframe::Result {
         Box::new(|_| {
             let mut app = App {
                 ws,
-                scene: Rect::ZERO,
+                // The first three columns of the default layout.
+                scene: Rect::from_min_size(
+                    pos2(-GAP, -GAP),
+                    vec2(3.0 * (FILE_WIDTH + GAP) + GAP, 600.0),
+                ),
                 selected: None,
                 dragging: None,
                 file_drag: None,
@@ -150,6 +156,7 @@ impl App {
         let pointer = ui.ctx().pointer_latest_pos().map(|p| to_local * p);
         let files = self.ws.files().to_vec();
         let mut dropped = None;
+        let defaults = default_layout(&files);
         for (i, file) in files.iter().enumerate() {
             let id = Id(vec![i]);
             let pos = match (self.dragging.as_ref() == Some(&id), self.file_drag) {
@@ -157,9 +164,7 @@ impl App {
                 _ => self
                     .ws
                     .position(&id)
-                    .map_or(pos2(i as f32 * (FILE_WIDTH + 40.0), 0.0), |[x, y]| {
-                        pos2(x, y)
-                    }),
+                    .map_or(defaults[i], |[x, y]| pos2(x, y)),
             };
             let max = Rect::from_min_size(pos, vec2(FILE_WIDTH, f32::INFINITY));
             ui.scope_builder(egui::UiBuilder::new().max_rect(max), |ui| {
@@ -193,9 +198,10 @@ impl App {
         }
         if dropped.is_some() {
             if let (1, Some(at)) = (dragging.0.len(), self.file_drag)
-                && let Err(e) = self.ws.place(&dragging, [at.x, at.y]) {
-                    self.message = format!("couldn't save the layout: {e}");
-                }
+                && let Err(e) = self.ws.place(&dragging, [at.x, at.y])
+            {
+                self.message = format!("couldn't save the layout: {e}");
+            }
             self.dragging = None;
             self.file_drag = None;
         }
@@ -344,6 +350,35 @@ impl App {
     }
 }
 
+/// Where each file block goes if it has no place in the sidecar: the shortest
+/// column of a grid about as wide as it is tall, in path order.
+// ponytail: heights are estimated from block counts (wrapped labels run taller);
+// measure last frame's rects if columns overlap in practice.
+fn default_layout(files: &[Block]) -> Vec<Pos2> {
+    let columns = (files.len() as f32).sqrt().ceil().max(1.0) as usize;
+    let mut bottoms = vec![0.0_f32; columns];
+    files
+        .iter()
+        .map(|file| {
+            let c = (0..columns)
+                .min_by(|&a, &b| bottoms[a].total_cmp(&bottoms[b]))
+                .unwrap();
+            let at = pos2(c as f32 * (FILE_WIDTH + GAP), bottoms[c]);
+            bottoms[c] += estimated_height(file) + GAP;
+            at
+        })
+        .collect()
+}
+
+/// A header row plus the frame's margins, and the stack inside.
+fn estimated_height(b: &Block) -> f32 {
+    34.0 + b
+        .children
+        .iter()
+        .map(|c| estimated_height(c) + 4.0)
+        .sum::<f32>()
+}
+
 fn label(b: &Block) -> String {
     if b.kind == "file" {
         b.name.clone()
@@ -362,4 +397,30 @@ fn fill(kind: &str, dark: bool) -> Color32 {
         _ => (150, 150, 150),
     };
     Color32::from_rgba_unmultiplied(r, g, b, if dark { 60 } else { 45 })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unplaced_files_fill_the_shortest_column_of_a_square_ish_grid() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir(&src).unwrap();
+        // Two one-item files, then a tall file and a short one: 4 files, 2 columns.
+        std::fs::write(src.join("a.rs"), "fn a() {}\n").unwrap();
+        std::fs::write(src.join("b.rs"), "fn b() {}\n").unwrap();
+        std::fs::write(src.join("c.rs"), "fn c1() {}\nfn c2() {}\nfn c3() {}\n").unwrap();
+        std::fs::write(src.join("d.rs"), "fn d() {}\n").unwrap();
+        let ws = Workspace::open(dir.path()).unwrap();
+
+        let at = default_layout(ws.files());
+
+        let col = FILE_WIDTH + GAP;
+        assert_eq!((at[0].x, at[0].y, at[1].x, at[1].y), (0.0, 0.0, col, 0.0));
+        assert_eq!(at[2].x, 0.0, "a tie goes to the first column");
+        assert_eq!(at[3].x, col, "b's column is now the shorter one");
+        assert!(at[2].y > 0.0 && at[3].y == at[2].y);
+    }
 }
