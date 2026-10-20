@@ -1,9 +1,8 @@
 //! A hand takes control of the desktop only when it's raised open into the
 //! reach, so hands at the keyboard don't click as they type.
 
-
-use glam::Vec3;
 use crate::support::{Grip, Script, buttons};
+use glam::Vec3;
 use terrain_desktop::{Button, Input};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
@@ -106,7 +105,11 @@ fn the_reach_is_in_the_camera_picture_whatever_tilt_the_3d_app_calibrated() {
         .hold(AHEAD, Grip::Pinch, 8)
         .hold(AHEAD, Grip::Open, 5);
     let mut control = terrain_desktop::DesktopControl::new(camera);
-    let inputs: Vec<Input> = script.frames.iter().flat_map(|f| control.update(f)).collect();
+    let inputs: Vec<Input> = script
+        .frames
+        .iter()
+        .flat_map(|f| control.update(f))
+        .collect();
     assert_eq!(
         buttons(&inputs),
         vec![Input::Press(Button::Left), Input::Release(Button::Left)]

@@ -222,7 +222,8 @@ impl VirtualDesktop {
         )?;
         // Ordinary keyboard keys too, so it's taken for a keyboard.
         let keys: Vec<u16> = (1..=88)
-            .chain([KEY_UP, KEY_LEFT, KEY_RIGHT, KEY_DOWN, KEY_LEFTMETA]).collect();
+            .chain([KEY_UP, KEY_LEFT, KEY_RIGHT, KEY_DOWN, KEY_LEFTMETA])
+            .collect();
         let keyboard = Device::create("terrain hand keys", 2, &keys, &[], &[])?;
         Ok(Self {
             pointer,

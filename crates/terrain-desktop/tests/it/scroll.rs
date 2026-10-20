@@ -1,9 +1,8 @@
 //! A Vee scrolls: the further the hand moves from where the Vee began, the
 //! faster the page scrolls that way, with the pointer held still.
 
-
-use glam::{Vec2, Vec3};
 use crate::support::{Grip, Script, buttons, last_point};
+use glam::{Vec2, Vec3};
 use terrain_desktop::Input;
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
@@ -84,7 +83,10 @@ fn the_pointer_holds_still_while_the_vee_scrolls() {
         .hold(AHEAD, Grip::Open, 20)
         .hold(AHEAD, Grip::Vee, 10);
     let at_start = last_point(&script.run());
-    let inputs = script.sweep(AHEAD, up, Grip::Vee, 10).hold(up, Grip::Vee, 10).run();
+    let inputs = script
+        .sweep(AHEAD, up, Grip::Vee, 10)
+        .hold(up, Grip::Vee, 10)
+        .run();
     assert_eq!(last_point(&inputs), at_start);
 }
 

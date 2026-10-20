@@ -1,9 +1,8 @@
 //! The palm points: where the hand is in the reach is where the pointer
 //! is on the screen.
 
-
-use glam::{Vec2, Vec3};
 use crate::support::{Grip, Script, buttons, last_point};
+use glam::{Vec2, Vec3};
 use terrain_desktop::{Button, Input};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);

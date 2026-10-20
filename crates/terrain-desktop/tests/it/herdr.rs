@@ -2,9 +2,8 @@
 //! key chords: a fist moves the focus between panes, a pinch steps
 //! through tabs (left, right) and workspaces (up, down).
 
-
-use glam::Vec3;
 use crate::support::{Grip, Script, buttons};
+use glam::Vec3;
 use terrain_desktop::{Button, Input, Status};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
@@ -12,7 +11,10 @@ const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
 #[test]
 fn a_fist_flicked_left_focuses_the_pane_to_the_left() {
     let inputs = flick(Grip::Fist, Vec3::new(-0.12, 0.0, 0.0));
-    assert_eq!(buttons(&inputs), chord(&[Button::Ctrl, Button::Alt, Button::H]));
+    assert_eq!(
+        buttons(&inputs),
+        chord(&[Button::Ctrl, Button::Alt, Button::H])
+    );
 }
 
 #[test]
@@ -24,7 +26,11 @@ fn a_fist_flicked_each_way_focuses_the_pane_that_way() {
     ];
     for (by, key) in ways {
         let inputs = flick(Grip::Fist, by);
-        assert_eq!(buttons(&inputs), chord(&[Button::Ctrl, Button::Alt, key]), "flicked {by}");
+        assert_eq!(
+            buttons(&inputs),
+            chord(&[Button::Ctrl, Button::Alt, key]),
+            "flicked {by}"
+        );
     }
 }
 
@@ -80,8 +86,14 @@ fn a_flick_shows_its_binding_until_the_hand_opens() {
             .sweep(AHEAD, AHEAD + by, grip, 3)
             .hold(AHEAD + by, grip, 5)
     };
-    assert_eq!(flicked(Grip::Fist).status(), Status::Gesture("✊ ↑ Pane".into()));
-    assert_eq!(flicked(Grip::Pinch).status(), Status::Gesture("🤏 ↑ Workspace".into()));
+    assert_eq!(
+        flicked(Grip::Fist).status(),
+        Status::Gesture("✊ ↑ Pane".into())
+    );
+    assert_eq!(
+        flicked(Grip::Pinch).status(),
+        Status::Gesture("🤏 ↑ Workspace".into())
+    );
     let opened = flicked(Grip::Pinch).hold(AHEAD + by, Grip::Open, 10);
     assert_eq!(opened.status(), Status::Pointing);
 }

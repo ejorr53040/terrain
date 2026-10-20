@@ -128,7 +128,10 @@ fn one_hand_followed_through_a_pinch_is_never_found_twice() {
     // that hand again: its palm box lies inside the followed region.
     // ponytail: the frames show the user, so they're gitignored and kept
     // locally only (backup ~/.cache/terrain/fixtures); a fresh clone skips.
-    let frames = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hands/one_hand_pinching");
+    let frames = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/hands/one_hand_pinching"
+    );
     if !std::path::Path::new(frames).exists() {
         eprintln!("skipped: no local webcam frames in {frames}");
         return;

@@ -2,10 +2,9 @@
 //! hands do, every press gets its release, and nothing stays held once the
 //! hand is lost or control is let go.
 
-
+use crate::support::{FRAME_MS, Grip, hand};
 use glam::Vec3;
 use proptest::prelude::*;
-use crate::support::{FRAME_MS, Grip, hand};
 use terrain_desktop::{Button, DesktopControl, Input};
 use terrain_hands::{CameraModel, HandFrame};
 

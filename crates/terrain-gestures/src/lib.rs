@@ -260,7 +260,11 @@ impl Engine {
         let mut actions = Vec::new();
         if let Some(active) = &mut self.active {
             active.trail.push_back((t_ms, to_screen(hand.in_view)));
-            while active.trail.front().is_some_and(|&(t, _)| t_ms - t > TRAIL_MS) {
+            while active
+                .trail
+                .front()
+                .is_some_and(|&(t, _)| t_ms - t > TRAIL_MS)
+            {
                 active.trail.pop_front();
             }
         }
@@ -311,16 +315,20 @@ impl Engine {
             }
             Guard::Flicked(direction, by, ms) => {
                 let now = to_screen(hand.in_view);
-                active.trail.iter().filter(|&&(t, _)| t_ms - t <= ms).any(|&(_, p)| {
-                    let moved = now - p;
-                    let (along, across) = match direction {
-                        Direction::Left => (-moved.x, moved.y),
-                        Direction::Right => (moved.x, moved.y),
-                        Direction::Up => (-moved.y, moved.x),
-                        Direction::Down => (moved.y, moved.x),
-                    };
-                    along > by && along > across.abs()
-                })
+                active
+                    .trail
+                    .iter()
+                    .filter(|&&(t, _)| t_ms - t <= ms)
+                    .any(|&(_, p)| {
+                        let moved = now - p;
+                        let (along, across) = match direction {
+                            Direction::Left => (-moved.x, moved.y),
+                            Direction::Right => (moved.x, moved.y),
+                            Direction::Up => (-moved.y, moved.x),
+                            Direction::Down => (moved.y, moved.x),
+                        };
+                        along > by && along > across.abs()
+                    })
             }
         }
     }
