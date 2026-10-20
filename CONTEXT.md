@@ -7,12 +7,20 @@ Hands seen by a webcam drive things on screen: 3D objects in the app, and the re
 ### Hands
 
 **Pose**:
-The shape a hand is in during one frame: Open, Pinch, Fist or Vee.
+The shape a hand is in during one frame: Open, Pinch, Fist, One, Vee, Three or Four. A Pose is only the shape, the same whichever way the hand faces and whichever hand it is; each world decides what it does (the cube world grabs with both Pinch and Fist, the desktop drags windows with a Fist).
 _Avoid_: Grip, hand shape
 
 **Vee**:
-The pose with the index and middle fingers extended and the others curled, used to scroll.
-_Avoid_: Two-finger, peace sign
+The pose with the index and middle fingers extended and the others curled. It is also the "two" of any finger count.
+_Avoid_: Two-finger, Two, peace sign
+
+**Finger count**:
+The poses One (index finger), Vee, Three (index, middle, ring) and Four (all but the thumb), held up to pick something by number.
+_Avoid_: Number pose, digits
+
+**Pose example**:
+One recorded frame of a hand labelled with the Pose it was held in. A hand's Pose is the label of the examples it is closest to.
+_Avoid_: Sample, training data, template
 
 **Gesture**:
 A recognized pattern of poses and movement over time, such as a Tap, Drag or LongPress.
@@ -84,3 +92,15 @@ _Avoid_: Prefab, blueprint
 **Library**:
 The built-in templates (line, L, block, pyramid) and the user's saved ones. A file that fails to parse is skipped with a message.
 _Avoid_: Catalog, palette
+
+**Overlay**:
+The builder's menu: tools, the selected shape's sizes, the Library, Scene buttons (reset, calibrate, preview), physics and Materials. Every control there is also reachable by hand through the Overlay pointer, so rare settings need no gesture of their own.
+_Avoid_: HUD, settings window
+
+**Hot edge**:
+The screen's right edge. A hand cursor resting there about 300 ms opens the Overlay; it closes once no cursor has been over it for about a second.
+_Avoid_: Hot corner, drawer
+
+**Overlay pointer**:
+A hand cursor over the Overlay working it like a mouse: a pinch clicks, a pinch-drag moves a slider at half the hand's speed. A pinch that starts over the Overlay never grabs a Shape. The first hand in owns it until it leaves.
+_Avoid_: Virtual mouse
