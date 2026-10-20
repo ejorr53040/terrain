@@ -131,7 +131,7 @@ fn outline(ws: &Workspace, system: &str) -> Vec<String> {
 }
 
 #[test]
-fn capabilities_group_rename_and_regroup_items_without_touching_code() {
+fn capabilities_are_made_renamed_and_regrouped_items_without_touching_code() {
     let dir = fleet();
     let before = sources(dir.path());
     let mut ws = Workspace::open(dir.path()).unwrap();
@@ -141,7 +141,7 @@ fn capabilities_group_rename_and_regroup_items_without_touching_code() {
     );
 
     let vm = ws
-        .group(
+        .new_capability_from(
             &item("fleet-node/src/vm.rs", "fn boot"),
             &item("fleet-node/src/vm.rs", "fn stop"),
         )
@@ -175,7 +175,7 @@ fn capabilities_group_rename_and_regroup_items_without_touching_code() {
     assert_eq!(
         sources(dir.path()),
         before,
-        "grouping never changes a .rs file"
+        "regrouping never changes a .rs file"
     );
 }
 
@@ -211,7 +211,7 @@ fn a_capability_uses_the_libraries_its_items_name_and_the_outside_systems_its_fi
     let dir = fleet();
     let mut ws = Workspace::open(dir.path()).unwrap();
     let vm = ws
-        .group(
+        .new_capability_from(
             &item("fleet-node/src/vm.rs", "fn boot"),
             &item("fleet-node/src/lib.rs", "fn serve"),
         )
@@ -232,7 +232,7 @@ fn an_item_renamed_on_disk_goes_back_to_unsorted_and_is_counted_missing_until_di
     let dir = fleet();
     let mut ws = Workspace::open(dir.path()).unwrap();
     let vm = ws
-        .group(
+        .new_capability_from(
             &item("fleet-node/src/vm.rs", "fn boot"),
             &item("fleet-node/src/vm.rs", "fn stop"),
         )
@@ -269,4 +269,78 @@ fn system_positions_survive_reopening() {
             .system_position("fleet-node"),
         Some([10.0, 20.0])
     );
+}
+
+#[test]
+fn a_sidecar_saved_by_the_files_view_release_opens_with_its_file_positions() {
+    let dir = fleet();
+    fs::write(
+        dir.path().join(".terrain-blocks.ron"),
+        "{\"crates/fleet-node/src/vm.rs\": (3.0, 4.0)}",
+    )
+    .unwrap();
+    let ws = Workspace::open(dir.path()).unwrap();
+    let vm = ws.find(&["crates/fleet-node/src/vm.rs"]).unwrap();
+    assert_eq!(ws.position(&vm), Some([3.0, 4.0]));
+}
+
+#[test]
+fn a_files_view_move_to_another_file_keeps_the_item_in_its_capability_and_undo_too() {
+    let dir = fleet();
+    let mut ws = Workspace::open(dir.path()).unwrap();
+    let vm = ws
+        .new_capability_from(
+            &item("fleet-node/src/vm.rs", "fn boot"),
+            &item("fleet-node/src/vm.rs", "fn stop"),
+        )
+        .unwrap();
+    let stop = ws
+        .find(&["crates/fleet-node/src/vm.rs", "fn stop"])
+        .unwrap();
+    let lib = ws.find(&["crates/fleet-node/src/lib.rs"]).unwrap();
+    let end = ws.block(&lib).unwrap().children.len();
+    ws.move_block(&stop, &lib, end).unwrap();
+
+    let cap = capability(&Workspace::open(dir.path()).unwrap(), "fleet-node", vm);
+    let files: Vec<_> = cap.items.iter().map(|i| i.file.as_str()).collect();
+    assert_eq!(
+        (files.as_slice(), cap.missing),
+        (
+            &[
+                "crates/fleet-node/src/vm.rs",
+                "crates/fleet-node/src/lib.rs"
+            ][..],
+            0
+        )
+    );
+
+    assert!(ws.undo().unwrap());
+    let cap = capability(&Workspace::open(dir.path()).unwrap(), "fleet-node", vm);
+    assert_eq!(
+        (cap.items.len(), cap.missing),
+        (2, 0),
+        "undo puts the reference back too"
+    );
+}
+
+#[test]
+fn items_in_a_file_with_a_syntax_error_are_not_missing_and_survive_dismiss() {
+    let dir = fleet();
+    let mut ws = Workspace::open(dir.path()).unwrap();
+    let vm = ws
+        .new_capability_from(
+            &item("fleet-node/src/vm.rs", "fn boot"),
+            &item("fleet-node/src/vm.rs", "fn stop"),
+        )
+        .unwrap();
+    let vm_rs = dir.path().join("crates/fleet-node/src/vm.rs");
+    let good = fs::read_to_string(&vm_rs).unwrap();
+    fs::write(&vm_rs, format!("{good}\nfn half(")).unwrap();
+    ws.refresh().unwrap();
+    assert_eq!(capability(&ws, "fleet-node", vm).missing, 0);
+    ws.dismiss_missing(vm).unwrap();
+
+    fs::write(&vm_rs, good).unwrap();
+    ws.refresh().unwrap();
+    assert_eq!(outline(&ws, "fleet-node")[0], "boot [fn boot, fn stop]");
 }

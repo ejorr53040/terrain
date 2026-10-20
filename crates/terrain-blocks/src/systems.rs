@@ -168,14 +168,15 @@ impl Workspace {
                     if saved.system != m.name {
                         continue;
                     }
-                    let mut items = Vec::new();
+                    let (mut items, mut missing) = (Vec::new(), 0);
                     for r in &saved.items {
                         // ponytail: two items with the same label in one file resolve to the first.
                         if let Some(i) = unsorted.iter().position(|it| it.reference() == *r) {
                             items.push(unsorted.remove(i));
+                        } else if !self.unparsed(&r.file) {
+                            missing += 1;
                         }
                     }
-                    let missing = saved.items.len() - items.len();
                     let uses = libraries
                         .iter()
                         .filter(|lib| items.iter().any(|it| self.item_uses(it, lib)))
@@ -224,7 +225,11 @@ impl Workspace {
     }
 
     /// Put two items of one System into a new Capability named after the first.
-    pub fn group(&mut self, first: &ItemRef, second: &ItemRef) -> Result<usize, MoveError> {
+    pub fn new_capability_from(
+        &mut self,
+        first: &ItemRef,
+        second: &ItemRef,
+    ) -> Result<usize, MoveError> {
         let system = self.system_of(first)?;
         if first == second || self.system_of(second)? != system {
             return Err(MoveError::Invalid("a Capability holds items of one System"));
@@ -278,6 +283,26 @@ impl Workspace {
         Ok(self.save_sidecar()?)
     }
 
+    /// Point every Capability reference to `from` at `to`, saving the sidecar if any did.
+    pub(crate) fn rerefer(&mut self, from: &ItemRef, to: &ItemRef) -> io::Result<()> {
+        let mut changed = false;
+        for r in self
+            .sidecar
+            .capabilities
+            .iter_mut()
+            .flat_map(|c| &mut c.items)
+        {
+            if r == from {
+                *r = to.clone();
+                changed = true;
+            }
+        }
+        if changed {
+            self.save_sidecar()?;
+        }
+        Ok(())
+    }
+
     /// Forget the items a Capability refers to that no longer exist.
     pub fn dismiss_missing(&mut self, capability: usize) -> Result<(), MoveError> {
         let system = self
@@ -288,10 +313,19 @@ impl Workspace {
             .system
             .clone();
         let present: Vec<ItemRef> = self.items_of(&system).iter().map(Item::reference).collect();
-        self.sidecar.capabilities[capability]
+        let kept: Vec<ItemRef> = self.sidecar.capabilities[capability]
             .items
-            .retain(|r| present.contains(r));
+            .iter()
+            .filter(|r| present.contains(r) || self.unparsed(&r.file))
+            .cloned()
+            .collect();
+        self.sidecar.capabilities[capability].items = kept;
         Ok(self.save_sidecar()?)
+    }
+
+    /// The file exists but has syntax errors, so its items can't be told apart from gone.
+    fn unparsed(&self, file: &str) -> bool {
+        self.files.iter().any(|f| f.name == file && f.error)
     }
 
     /// An item uses a Crate dependency it names as a path root (`tokio::spawn`), and an

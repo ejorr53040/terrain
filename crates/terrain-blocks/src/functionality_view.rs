@@ -24,7 +24,7 @@ struct Hits {
     dropped: bool,
 }
 
-enum Target {
+enum DropOnto {
     /// Onto an Unsorted item: the two make a new Capability.
     Item(ItemRef),
     Capability(usize),
@@ -109,18 +109,18 @@ impl App {
             .items
             .iter()
             .find(|(r, s, rect)| *s == system && *r != dragged && rect.contains(p))
-            .map(|(r, _, rect)| (Target::Item(r.clone()), *rect))
+            .map(|(r, _, rect)| (DropOnto::Item(r.clone()), *rect))
             .or_else(|| {
                 hits.caps
                     .iter()
                     .find(|(_, s, rect, _)| *s == system && rect.contains(p))
-                    .map(|(i, _, rect, _)| (Target::Capability(*i), *rect))
+                    .map(|(i, _, rect, _)| (DropOnto::Capability(*i), *rect))
             })
             .or_else(|| {
                 hits.systems
                     .iter()
                     .find(|(s, rect)| *s == system && rect.contains(p))
-                    .map(|(_, rect)| (Target::Unsorted, *rect))
+                    .map(|(_, rect)| (DropOnto::Unsorted, *rect))
             });
         if let Some((_, rect)) = &target {
             ui.painter().rect_stroke(
@@ -400,11 +400,11 @@ impl App {
         }
     }
 
-    fn regroup(&mut self, dragged: ItemRef, target: Target) {
+    fn regroup(&mut self, dragged: ItemRef, target: DropOnto) {
         self.capability_op(|ws| match target {
-            Target::Item(onto) => ws.group(&onto, &dragged).map(|_| ()),
-            Target::Capability(c) => ws.assign(&dragged, Some(c)),
-            Target::Unsorted => ws.assign(&dragged, None),
+            DropOnto::Item(onto) => ws.new_capability_from(&onto, &dragged).map(|_| ()),
+            DropOnto::Capability(c) => ws.assign(&dragged, Some(c)),
+            DropOnto::Unsorted => ws.assign(&dragged, None),
         });
     }
 

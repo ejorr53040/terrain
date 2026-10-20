@@ -51,13 +51,16 @@ pub struct Workspace {
     files: Vec<Block>,
     /// Text of each file as last read or written, parallel to `files`.
     texts: Vec<String>,
-    /// Per move, the earlier text of each file it touched, by name (refresh renumbers files).
-    undo: Vec<Vec<(String, String)>>,
+    /// Per move, the earlier text of each file it touched, by name (refresh renumbers
+    /// files), and the Capability reference it rewrote, from and to.
+    undo: Vec<Undo>,
     /// The user's view of the crate, saved in the sidecar.
     sidecar: Sidecar,
     /// Every crate in the workspace, re-read on refresh.
     manifests: Vec<systems::Manifest>,
 }
+
+type Undo = (Vec<(String, String)>, Option<(ItemRef, ItemRef)>);
 
 const SIDECAR: &str = ".terrain-blocks.ron";
 
@@ -78,9 +81,17 @@ struct Sidecar {
 impl Workspace {
     pub fn open(root: &Path) -> io::Result<Workspace> {
         let sidecar = match fs::read_to_string(root.join(SIDECAR)) {
-            Ok(text) => {
-                ron::from_str(&text).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
-            }
+            Ok(text) => ron::from_str(&text)
+                // The Files-view release saved only the bare file-position map.
+                .or_else(|e| {
+                    ron::from_str(&text)
+                        .map(|files| Sidecar {
+                            files,
+                            ..Default::default()
+                        })
+                        .map_err(|_| e)
+                })
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             Err(e) if e.kind() == io::ErrorKind::NotFound => Sidecar::default(),
             Err(e) => return Err(e),
         };
@@ -230,12 +241,22 @@ impl Workspace {
             _ => return Err(MoveError::Invalid("no such place in the stack")),
         };
 
-        self.undo.push(
+        // A top-level item landing at another file's top level is the same item to its Capability.
+        let item = (block.0.len() == 2 && into.0.len() == 1 && from != to).then(|| {
+            let label = format!("{} {}", moving.kind, moving.name);
+            let at = |f: usize| ItemRef {
+                file: self.files[f].name.clone(),
+                label: label.clone(),
+            };
+            (at(from), at(to))
+        });
+        self.undo.push((
             touched
                 .iter()
                 .map(|&f| (self.files[f].name.clone(), self.texts[f].clone()))
                 .collect(),
-        );
+            item.clone(),
+        ));
         let mut new_from = self.texts[from].clone();
         if from == to {
             // Both edits index the old text, so apply the later one first.
@@ -254,12 +275,15 @@ impl Workspace {
             self.write(from, new_from)?;
             self.write(to, new_to)?;
         }
+        if let Some((old, new)) = item {
+            self.rerefer(&old, &new)?;
+        }
         Ok(())
     }
 
     /// Put back the files as they were before the last move. False if there was none.
     pub fn undo(&mut self) -> Result<bool, MoveError> {
-        let Some(earlier) = self.undo.last() else {
+        let Some((earlier, _)) = self.undo.last() else {
             return Ok(false);
         };
         let mut files = Vec::new();
@@ -270,8 +294,12 @@ impl Workspace {
             }
         }
         self.check_fresh(&files)?;
-        for (file, (_, text)) in files.into_iter().zip(self.undo.pop().unwrap()) {
+        let (earlier, item) = self.undo.pop().unwrap();
+        for (file, (_, text)) in files.into_iter().zip(earlier) {
             self.write(file, text)?;
+        }
+        if let Some((old, new)) = item {
+            self.rerefer(&new, &old)?;
         }
         Ok(true)
     }
