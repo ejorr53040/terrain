@@ -61,36 +61,10 @@ fn feed_pointer(
     let (Ok(window), Ok(mut input)) = (window.single(), input.single_mut()) else {
         return;
     };
-    let pos = |at: Vec2| {
-        let at = at * window.size();
-        egui::pos2(at.x, at.y)
-    };
-    let events = &mut input.0.events;
-    match (last.at, pointer.at) {
-        (_, Some(at)) => {
-            events.push(egui::Event::PointerMoved(pos(at)));
-            if pointer.pressed != last.pressed {
-                events.push(egui::Event::PointerButton {
-                    pos: pos(at),
-                    button: egui::PointerButton::Primary,
-                    pressed: pointer.pressed,
-                    modifiers: Default::default(),
-                });
-            }
-        }
-        (Some(at), None) => {
-            if last.pressed {
-                events.push(egui::Event::PointerButton {
-                    pos: pos(at),
-                    button: egui::PointerButton::Primary,
-                    pressed: false,
-                    modifiers: Default::default(),
-                });
-            }
-            events.push(egui::Event::PointerGone);
-        }
-        (None, None) => {}
-    }
+    input
+        .0
+        .events
+        .extend(pointer.egui_events(&last, window.size()));
     *last = pointer.clone();
 }
 

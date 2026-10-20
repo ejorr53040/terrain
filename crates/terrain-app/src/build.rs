@@ -5,6 +5,7 @@
 use std::time::Duration;
 
 use bevy::{ecs::entity_disabling::Disabled, prelude::*, window::PrimaryWindow};
+use bevy_egui::egui;
 
 use crate::{Arena, Grab, Grabbable, HandCursor, Material, SceneCamera, Screen, Shape};
 
@@ -88,6 +89,9 @@ pub struct OverlayPointer {
 /// How far the pointer moves for the hand's move while pinched, so a
 /// slider doesn't wobble with the hand.
 const DRAG_GAIN: f32 = 0.5;
+/// How far a pinched hand moves (fraction of the window) before the pointer
+/// follows: a real tap drifts about 0.01, and egui reads any move as a drag.
+const CLICK_SLOP: f32 = 0.02;
 
 /// Gives the overlay pointer to the first open hand over the overlay and
 /// moves it with that hand until the hand leaves (not mid-press).
@@ -121,12 +125,55 @@ pub(crate) fn point_at_overlay(
             (false, _) => None,
         };
         next.at = Some(match next.pressed_from {
-            Some((pointer_at, hand_at)) => pointer_at + DRAG_GAIN * (c.at - hand_at),
+            Some((pointer_at, hand_at)) => {
+                let moved = c.at - hand_at;
+                let past_slop = (moved.length() - CLICK_SLOP).max(0.0);
+                pointer_at + DRAG_GAIN * past_slop * moved.normalize_or_zero()
+            }
             None => c.at,
         });
     }
     if *pointer != next {
         *pointer = next;
+    }
+}
+
+impl OverlayPointer {
+    /// The egui mouse events that take the pointer from `last` to here, in a
+    /// window `size` (logical pixels).
+    pub fn egui_events(&self, last: &OverlayPointer, size: Vec2) -> Vec<egui::Event> {
+        let pos = |at: Vec2| {
+            let at = at * size;
+            egui::pos2(at.x, at.y)
+        };
+        let button = |at: Vec2, pressed: bool| egui::Event::PointerButton {
+            pos: pos(at),
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        let mut events = Vec::new();
+        match (last.at, self.at) {
+            (_, Some(at)) => {
+                // A release lands where the pointer was, before it moves on,
+                // or the hand's last twitch turns the click into a drag.
+                if let (true, false, Some(was)) = (last.pressed, self.pressed, last.at) {
+                    events.push(button(was, false));
+                }
+                events.push(egui::Event::PointerMoved(pos(at)));
+                if self.pressed && !last.pressed {
+                    events.push(button(at, true));
+                }
+            }
+            (Some(at), None) => {
+                if last.pressed {
+                    events.push(button(at, false));
+                }
+                events.push(egui::Event::PointerGone);
+            }
+            (None, None) => {}
+        }
+        events
     }
 }
 

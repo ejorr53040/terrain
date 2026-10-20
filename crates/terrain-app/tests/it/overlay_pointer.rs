@@ -140,26 +140,25 @@ fn a_pinch_presses_and_opening_releases() {
 
 #[test]
 fn a_pinch_drag_moves_the_pointer_at_half_the_hand_s_speed() {
-    let to = OVER + Vec3::new(0.0, 0.05, 0.0);
-    let mut h = with_overlay(
-        [
-            hold(&[Pose::open(OVER)], SETTLE),
-            hold(&[Pose::pinched(OVER)], SETTLE),
-        ]
-        .concat(),
+    // Both past the dead zone a tap's drift stays inside.
+    let (from, to) = (
+        OVER + Vec3::new(0.0, 0.05, 0.0),
+        OVER + Vec3::new(0.0, 0.1, 0.0),
     );
-    h.run_all();
-    let (pointer_from, hand_from) = (pointer(&h).at.unwrap(), cursor_of(&mut h));
-    let mut h = with_overlay(
-        [
-            hold(&[Pose::open(OVER)], SETTLE),
-            hold(&[Pose::pinched(OVER)], SETTLE),
-            hold(&[Pose::pinched(to)], SETTLE),
-        ]
-        .concat(),
-    );
-    h.run_all();
-    let (pointer_to, hand_to) = (pointer(&h).at.unwrap(), cursor_of(&mut h));
+    let dragged_to = |at: Vec3| {
+        let mut h = with_overlay(
+            [
+                hold(&[Pose::open(OVER)], SETTLE),
+                hold(&[Pose::pinched(OVER)], SETTLE),
+                hold(&[Pose::pinched(at)], SETTLE),
+            ]
+            .concat(),
+        );
+        h.run_all();
+        (pointer(&h).at.unwrap(), cursor_of(&mut h))
+    };
+    let (pointer_from, hand_from) = dragged_to(from);
+    let (pointer_to, hand_to) = dragged_to(to);
     let hand_moved = hand_to - hand_from;
     assert!(hand_moved.length() > 0.05, "the hand should have moved");
     let pointer_moved = pointer_to - pointer_from;
@@ -202,4 +201,64 @@ fn the_first_hand_over_the_overlay_keeps_the_pointer() {
         .max_by(|a, b| a.y.total_cmp(&b.y))
         .unwrap();
     assert_eq!(pointer(&h).at, Some(first));
+}
+
+/// How many times a button filling a 2560x1600 window (the user's screen)
+/// is clicked, as egui sees the overlay pointer over `updates` of `h`.
+fn clicks_on_a_button_everywhere(h: &mut Harness, updates: usize) -> usize {
+    use bevy_egui::egui;
+    let size = Vec2::new(2560.0, 1600.0);
+    let ctx = egui::Context::default();
+    let (mut last, mut clicks) = (OverlayPointer::default(), 0);
+    for i in 0..updates {
+        h.run(1);
+        let now = pointer(h);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(size.x, size.y),
+            )),
+            time: Some((i as u64 * FRAME_MS) as f64 / 1000.0),
+            events: now.egui_events(&last, size),
+            ..default()
+        };
+        last = now;
+        let mut out = ctx.run_ui(input, |ui| {
+            if ui
+                .add_sized(ui.available_size(), egui::Button::new("everywhere"))
+                .clicked()
+            {
+                clicks += 1;
+            }
+        });
+        // No painter here to take the font atlas.
+        out.textures_delta.clear();
+    }
+    clicks
+}
+
+#[test]
+fn a_still_pinch_over_the_overlay_clicks_a_button() {
+    let frames = [
+        hold(&[Pose::open(OVER)], SETTLE),
+        hold(&[Pose::pinched(OVER)], 5),
+        hold(&[Pose::open(OVER)], SETTLE),
+    ]
+    .concat();
+    let n = frames.len();
+    let mut h = Harness::new(frames);
+    h.app.world_mut().resource_mut::<OverlayArea>().0 = Some(Rect::new(0.0, 0.0, 1.0, 1.0));
+    assert_eq!(clicks_on_a_button_everywhere(&mut h, n), 1);
+}
+
+#[test]
+fn a_recorded_tap_over_the_overlay_clicks_a_button() {
+    // The desktop's tap clip: a real hand pinching quickly once.
+    let clip = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../terrain-desktop/tests/clips/tap/frames.json"
+    );
+    let mut h = Harness::with_source(terrain_hands::ReplaySource::from_json_file(clip).unwrap());
+    h.app.world_mut().resource_mut::<OverlayArea>().0 = Some(Rect::new(0.0, 0.0, 1.0, 1.0));
+    assert_eq!(clicks_on_a_button_everywhere(&mut h, 300), 1);
 }

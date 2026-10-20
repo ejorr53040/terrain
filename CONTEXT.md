@@ -143,7 +143,7 @@ A saved build: shapes on grid cells relative to the first, each with its paramet
 _Avoid_: Prefab, blueprint
 
 **Library**:
-The built-in templates (line, L, block, pyramid) and the user's saved ones. A file that fails to parse is skipped with a message.
+The built-in templates (line, L, block, pyramid) and the user's saved ones. A file that fails to parse is skipped with a message. Blocks has a Library too, on purpose: the two tools are to be joined, so both keep the name and a similar way of browsing what's outside the build.
 _Avoid_: Catalog, palette
 
 **Overlay**:
@@ -155,5 +155,5 @@ The screen's right edge. A hand cursor resting there about 300 ms opens the Over
 _Avoid_: Hot corner, drawer
 
 **Overlay pointer**:
-A hand cursor over the Overlay working it like a mouse: a pinch clicks, a pinch-drag moves a slider at half the hand's speed. A pinch that starts over the Overlay never grabs a Shape. The first hand in owns it until it leaves.
+A hand cursor over the Overlay working it like a mouse: a pinch clicks, a pinch-drag moves a slider at half the hand's speed once the hand has moved past a small dead zone (so a tap's drift doesn't turn the click into a drag). A pinch that starts over the Overlay never grabs a Shape. The first hand in owns it until it leaves.
 _Avoid_: Virtual mouse
