@@ -3,7 +3,7 @@
 //!
 //! cargo run -p terrain-app --example make_demo_fixture
 
-#[path = "../tests/support/mod.rs"]
+#[path = "../tests/it/support/mod.rs"]
 mod support;
 
 use std::f32::consts::TAU;

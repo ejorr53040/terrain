@@ -13,6 +13,7 @@ bevy = "0.19"
 avian3d = { version = "0.7", default-features = false, features = ["3d", "f32", "parry-f32", "parallel"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+ron = "0.12"
 
 # Bevy is unusably slow unoptimized; keep our own code debuggable.
 [profile.dev.package."*"]

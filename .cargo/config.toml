@@ -1,0 +1,3 @@
+# 20 parallel jobs linking Bevy binaries hit 12G and got OOM-killed (2026-10-13).
+[build]
+jobs = 6

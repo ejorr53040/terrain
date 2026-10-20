@@ -72,11 +72,12 @@ impl Calibration {
 pub(crate) fn calibrate(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
+    mut requests: ResMut<crate::Requests>,
     mut calibration: ResMut<Calibration>,
     mut hands: ResMut<Hands>,
 ) {
     let now = time.elapsed();
-    if keys.just_pressed(KeyCode::KeyC) {
+    if keys.just_pressed(KeyCode::KeyC) || std::mem::take(&mut requests.calibrate) {
         calibration.phase = Phase::Countdown(now + COUNTDOWN);
     }
     match &mut calibration.phase {
