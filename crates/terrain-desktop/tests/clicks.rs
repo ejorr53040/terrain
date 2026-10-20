@@ -1,0 +1,109 @@
+//! A pinch works like a finger on a touchscreen: a tap clicks, a pinch
+//! that moves drags, a pinch held still opens the context menu.
+
+mod support;
+
+use glam::Vec3;
+use support::{Grip, Script, buttons, point_at_each_button};
+use terrain_desktop::{Button, Input};
+
+const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
+const RIGHT: Vec3 = Vec3::new(0.08, 0.0, 0.6);
+
+#[test]
+fn a_quick_pinch_clicks_where_it_started() {
+    let inputs = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Pinch, 8)
+        .hold(AHEAD, Grip::Open, 10)
+        .run();
+    let at = point_at_each_button(&inputs);
+    assert_eq!(
+        buttons(&inputs),
+        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+    );
+    assert_eq!(at[0].1, at[1].1, "the pointer held still through the click");
+}
+
+#[test]
+fn a_pinch_held_still_right_clicks_once() {
+    let inputs = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Pinch, 30)
+        .hold(AHEAD, Grip::Open, 10)
+        .run();
+    assert_eq!(
+        buttons(&inputs),
+        vec![Input::Press(Button::Right), Input::Release(Button::Right)]
+    );
+}
+
+#[test]
+fn a_pinch_that_moves_drags_from_where_it_started() {
+    let inputs = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Pinch, 6)
+        .sweep(AHEAD, RIGHT, Grip::Pinch, 10)
+        .hold(RIGHT, Grip::Pinch, 10)
+        .hold(RIGHT, Grip::Open, 10)
+        .run();
+    assert_eq!(
+        buttons(&inputs),
+        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+    );
+    let at = point_at_each_button(&inputs);
+    let (pressed, released) = (at[0].1.unwrap(), at[1].1.unwrap());
+    assert!((pressed.x - 0.5).abs() < 0.02, "pressed at {pressed}");
+    assert!(
+        released.x - pressed.x > 0.15,
+        "dragged from {pressed} to {released}"
+    );
+}
+
+#[test]
+fn a_pinch_held_still_then_moved_drags_instead_of_right_clicking() {
+    let inputs = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Pinch, 40)
+        .sweep(AHEAD, RIGHT, Grip::Pinch, 10)
+        .hold(RIGHT, Grip::Open, 10)
+        .run();
+    assert_eq!(
+        buttons(&inputs),
+        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+    );
+    let pressed = point_at_each_button(&inputs)[0].1.unwrap();
+    assert!((pressed.x - 0.5).abs() < 0.02, "pressed at {pressed}");
+}
+
+#[test]
+fn a_pinch_held_still_right_clicks_only_once_it_opens() {
+    let lost = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Pinch, 40)
+        .gone(20)
+        .run();
+    assert_eq!(
+        buttons(&lost),
+        vec![],
+        "a long press lost with its hand never happened"
+    );
+}
+
+#[test]
+fn a_pinch_right_clicks_from_six_tenths_of_a_second_still() {
+    // The pinch counts from 120 ms after it closes; frames are 33 ms apart.
+    let opened_after = |frames| {
+        buttons(
+            &Script::default()
+                .hold(AHEAD, Grip::Open, 20)
+                .hold(AHEAD, Grip::Pinch, frames)
+                .hold(AHEAD, Grip::Open, 10)
+                .run(),
+        )
+    };
+    let left = vec![Input::Press(Button::Left), Input::Release(Button::Left)];
+    let right = vec![Input::Press(Button::Right), Input::Release(Button::Right)];
+    assert_eq!(opened_after(20), left, "open after 0.66 s: a tap");
+    assert_eq!(opened_after(24), right, "open after 0.79 s: a long press");
+}

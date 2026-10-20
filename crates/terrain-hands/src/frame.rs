@@ -10,6 +10,17 @@ pub mod landmark {
     pub const MIDDLE_MCP: usize = 9;
     pub const RING_MCP: usize = 13;
     pub const PINKY_MCP: usize = 17;
+    pub const MIDDLE_TIP: usize = 12;
+    pub const RING_TIP: usize = 16;
+    pub const PINKY_TIP: usize = 20;
+
+    /// Each finger's knuckle and tip, index to pinky.
+    pub const FINGERS: [(usize, usize); 4] = [
+        (INDEX_MCP, INDEX_TIP),
+        (MIDDLE_MCP, MIDDLE_TIP),
+        (RING_MCP, RING_TIP),
+        (PINKY_MCP, PINKY_TIP),
+    ];
 
     /// Landmarks that stay put while the fingers move: their mean is the palm center.
     pub const PALM: [usize; 5] = [WRIST, INDEX_MCP, MIDDLE_MCP, RING_MCP, PINKY_MCP];
@@ -55,6 +66,19 @@ impl Hand {
     /// Thumb-tip to index-tip distance in meters.
     pub fn pinch_gap(&self) -> f32 {
         self.world[landmark::THUMB_TIP].distance(self.world[landmark::INDEX_TIP])
+    }
+
+    /// How far the straightest finger reaches: its tip's distance from the
+    /// wrist over its knuckle's. About 1.8 for a straight finger, under 1
+    /// for one folded into the palm, so under about 1.1 means a fist.
+    pub fn finger_reach(&self) -> f32 {
+        let wrist = self.world[landmark::WRIST];
+        landmark::FINGERS
+            .iter()
+            .map(|&(knuckle, tip)| {
+                self.world[tip].distance(wrist) / self.world[knuckle].distance(wrist).max(1e-6)
+            })
+            .fold(0.0, f32::max)
     }
 
     /// World landmark `i` in camera axes: meters, x right, y up, z away from the camera.
