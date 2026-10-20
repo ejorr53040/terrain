@@ -1,0 +1,5 @@
+(
+    outside: [
+        (name: "Firecracker", icon: "vm", files: ["crates/fleet-node/src/vm.rs"]),
+    ],
+)

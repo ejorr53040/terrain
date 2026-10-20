@@ -50,3 +50,56 @@ _Avoid_: Widget, element, hotspot
 **Assist**:
 Help in landing on targets: friction slows the pointer over a target while the hand is aiming, and a tap near a target snaps to it.
 _Avoid_: Aim assist, magnetism, snapping
+
+### Blocks
+
+**Block**:
+A file, inline module, `impl`, `trait` or item of a Rust crate, shown with its kind and name. An item's block includes its doc comments, attributes and leading comments.
+_Avoid_: Node, card, tile
+
+**Container**:
+A block that holds other blocks: a file, an inline module, an `impl` or a `trait`.
+_Avoid_: Parent, group
+
+**Stack**:
+The blocks directly inside a container, in source order. A block's place in its stack is its place in the file.
+_Avoid_: List, children, column
+
+**Canvas**:
+The 2D surface on which file blocks (Files view) or Systems (Functionality view) float. Only those have a free position; every other block lives in a stack.
+_Avoid_: Board, workspace, scene
+
+**Sidecar**:
+The file in the crate root that remembers the user's view of it: where blocks sit on the canvas, the Capabilities, the Outside systems and which plumbing crates are pinned. Never code.
+_Avoid_: Layout file, project file, config
+
+**Files view**:
+The canvas showing file blocks and their stacks. The only view in which dragging moves code.
+
+**Functionality view**:
+The canvas showing Systems, their Capabilities and their Libraries. Dragging here only regroups.
+_Avoid_: Infrastructure view, overview
+
+**System**:
+One crate of the workspace, shown as a block holding its Capabilities, its Unsorted items and its Libraries.
+_Avoid_: Crate block, package, service
+
+**Capability**:
+A named set of a System's items that together do one thing, such as "VM lifecycle". Made by the user, view-only; an item is in at most one.
+_Avoid_: Feature (a Cargo term), group, functionality, module
+
+**Unsorted**:
+A System's items that are in no Capability yet.
+_Avoid_: Ungrouped, misc
+
+**Library**:
+Something outside the workspace that a System relies on: a Crate dependency or an Outside system. Each System shows its own copy.
+_Avoid_: Package, external, dependency (alone)
+
+**Crate dependency**:
+A Library the System links against, read from its Cargo.toml. Plumbing crates are hidden unless pinned.
+_Avoid_: Dep, package
+
+**Outside system**:
+A Library the System drives at run time rather than links, such as Firecracker, declared in the sidecar with the files that drive it.
+_Avoid_: Service, binary, tool
