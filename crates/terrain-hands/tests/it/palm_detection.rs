@@ -2,9 +2,8 @@
 //! finds a hand region around every hand Python MediaPipe finds, and none
 //! where it finds no hands.
 
-
-use glam::Vec2;
 use crate::support::{Fixture, goldens};
+use glam::Vec2;
 use terrain_hands::{HandRegion, PALM_MODEL, PalmDetector};
 
 fn detect(name: &str) -> (u32, u32, Vec<HandRegion>) {

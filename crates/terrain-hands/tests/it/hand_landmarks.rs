@@ -1,9 +1,8 @@
 //! Seam B, landmarks: on MediaPipe's test images, the Rust tracker finds
 //! the hands Python MediaPipe finds, with matching handedness and landmarks.
 
-
-use glam::{Vec2, Vec3};
 use crate::support::{Fixture, GoldenHand, goldens, tracked_goldens};
+use glam::{Vec2, Vec3};
 use terrain_hands::{Hand, HandTracker, LANDMARK_MODEL, PALM_MODEL, TrackedHand, landmark};
 
 /// Largest allowed image landmark error, as a fraction of the image size.

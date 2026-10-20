@@ -14,8 +14,10 @@ const MAX_HANDS: usize = 2;
 /// the palm detector costs more than following a hand, and a second hand
 /// can wait a tenth of a second to be found.
 const SEARCH_EVERY: u32 = 3;
-/// A new palm overlapping a tracked hand's region more than this (IoU) is
-/// that same hand.
+/// A new palm overlapping a tracked hand's region more than this (IoU), or
+/// centred inside it, is that same hand. Centred-inside is needed because a
+/// palm box is much smaller than a followed hand's region, so a palm lying
+/// wholly inside one scores only about 0.4 IoU.
 const SAME_HAND_IOU: f32 = 0.5;
 /// The next frame's region is this much bigger than the landmarks' box...
 const REGION_SCALE: f32 = 2.0;
@@ -71,7 +73,9 @@ impl HandTracker {
             self.since_search = 0;
             for palm in self.palms.detect(image)? {
                 if regions.len() < MAX_HANDS
-                    && regions.iter().all(|(r, _)| r.iou(&palm) <= SAME_HAND_IOU)
+                    && regions
+                        .iter()
+                        .all(|(r, _)| r.iou(&palm) <= SAME_HAND_IOU && !r.contains(palm.center))
                 {
                     regions.push((palm, LabelVote::None));
                 }
