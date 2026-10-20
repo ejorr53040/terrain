@@ -92,3 +92,24 @@ fn time_running_backwards_does_nothing_strange() {
     let inputs = script.run();
     assert!(buttons(&inputs).len() <= 2, "{:?}", buttons(&inputs));
 }
+
+#[test]
+fn the_reach_is_in_the_camera_picture_whatever_tilt_the_3d_app_calibrated() {
+    // The 3D app's calibration tilts positions level; the reach is the
+    // middle of the picture regardless (this one is the user's, saved
+    // with the camera tilted up at them).
+    let camera = terrain_hands::CameraModel {
+        tilt: glam::Quat::from_xyzw(0.22542778, 0.0, -0.050640278, 0.97294295),
+        ..Default::default()
+    };
+    let script = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Pinch, 8)
+        .hold(AHEAD, Grip::Open, 5);
+    let mut control = terrain_desktop::DesktopControl::new(camera);
+    let inputs: Vec<Input> = script.frames.iter().flat_map(|f| control.update(f)).collect();
+    assert_eq!(
+        buttons(&inputs),
+        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+    );
+}
