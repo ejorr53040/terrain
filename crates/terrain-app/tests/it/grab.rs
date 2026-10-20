@@ -1,6 +1,5 @@
-
-use bevy::prelude::*;
 use crate::support::*;
+use bevy::prelude::*;
 
 const START: Vec3 = Vec3::new(0.0, 0.0, 0.5);
 

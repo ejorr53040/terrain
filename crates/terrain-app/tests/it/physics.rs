@@ -1,6 +1,5 @@
-
-use bevy::prelude::*;
 use crate::support::*;
+use bevy::prelude::*;
 
 /// Two cubes side by side, 5 cm apart (each is 15 cm across).
 const LEFT_CUBE: Vec3 = Vec3::new(-0.2, 0.0, 0.0);

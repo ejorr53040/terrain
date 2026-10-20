@@ -1,6 +1,5 @@
-
-use bevy::prelude::*;
 use crate::support::*;
+use bevy::prelude::*;
 use terrain_app::CUBE_SIZE;
 
 /// One hand holds the cube; the other then pinches with its cursor on the

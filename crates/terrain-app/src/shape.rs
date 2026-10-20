@@ -74,7 +74,10 @@ impl Shape {
         let top = 1.0 - self.taper.clamp(0.0, 1.0);
         let outline = self.outline();
         (
-            outline.iter().map(|(p, _)| Vec3::new(p.x, -h, p.y)).collect(),
+            outline
+                .iter()
+                .map(|(p, _)| Vec3::new(p.x, -h, p.y))
+                .collect(),
             outline
                 .iter()
                 .map(|(p, _)| Vec3::new(p.x * top, h, p.y * top))
@@ -91,14 +94,15 @@ impl Shape {
         let mut normals = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
         // Each triangle wound counter-clockwise seen from `outward`.
-        let face = |indices: &mut Vec<u32>, positions: &[Vec3], [a, b, c]: [u32; 3], outward: Vec3| {
-            let [pa, pb, pc] = [a, b, c].map(|i| positions[i as usize]);
-            if (pb - pa).cross(pc - pa).dot(outward) >= 0.0 {
-                indices.extend([a, b, c]);
-            } else {
-                indices.extend([a, c, b]);
-            }
-        };
+        let face =
+            |indices: &mut Vec<u32>, positions: &[Vec3], [a, b, c]: [u32; 3], outward: Vec3| {
+                let [pa, pb, pc] = [a, b, c].map(|i| positions[i as usize]);
+                if (pb - pa).cross(pc - pa).dot(outward) >= 0.0 {
+                    indices.extend([a, b, c]);
+                } else {
+                    indices.extend([a, c, b]);
+                }
+            };
         // Sides: one bottom and one top vertex per outline point, normal
         // across the slope.
         for (i, (_, out)) in outline.iter().enumerate() {
@@ -112,7 +116,12 @@ impl Shape {
         }
         for i in 0..n {
             let j = (i + 1) % n;
-            let (b0, t0, b1, t1) = (2 * i as u32, 2 * i as u32 + 1, 2 * j as u32, 2 * j as u32 + 1);
+            let (b0, t0, b1, t1) = (
+                2 * i as u32,
+                2 * i as u32 + 1,
+                2 * j as u32,
+                2 * j as u32 + 1,
+            );
             let mid = (positions[b0 as usize] + positions[b1 as usize]) / 2.0;
             let outward = Vec3::new(mid.x, 0.0, mid.z);
             face(&mut indices, &positions, [b0, b1, t1], outward);
@@ -127,13 +136,21 @@ impl Shape {
             normals.extend(std::iter::repeat_n(normal, n));
             for i in 0..n as u32 {
                 let j = (i + 1) % n as u32;
-                face(&mut indices, &positions, [middle, middle + 1 + i, middle + 1 + j], normal);
+                face(
+                    &mut indices,
+                    &positions,
+                    [middle, middle + 1 + i, middle + 1 + j],
+                    normal,
+                );
             }
         }
-        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
-            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
-            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
-            .with_inserted_indices(Indices::U32(indices))
+        Mesh::new(
+            PrimitiveTopology::TriangleList,
+            RenderAssetUsages::default(),
+        )
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+        .with_inserted_indices(Indices::U32(indices))
     }
 
     /// What it collides as: avian's own box or cylinder where one fits,

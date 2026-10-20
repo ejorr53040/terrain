@@ -38,23 +38,59 @@ impl Materials {
 
 impl Default for Materials {
     fn default() -> Self {
-        let preset = |name: &str, color, density, friction: (f32, f32), restitution, conductive| Preset {
-            name: name.into(),
-            color,
-            density,
-            static_friction: friction.0,
-            dynamic_friction: friction.1,
-            restitution,
-            conductive,
-            charge: 0.0,
-        };
+        let preset =
+            |name: &str, color, density, friction: (f32, f32), restitution, conductive| Preset {
+                name: name.into(),
+                color,
+                density,
+                static_friction: friction.0,
+                dynamic_friction: friction.1,
+                restitution,
+                conductive,
+                charge: 0.0,
+            };
         Self {
             presets: vec![
-                preset("glass", Color::srgb(0.35, 0.65, 0.95), 2500.0, (0.1, 0.05), 0.4, false),
-                preset("wood", Color::srgb(0.95, 0.6, 0.3), 600.0, (0.6, 0.5), 0.15, false),
-                preset("rubber", Color::srgb(0.45, 0.85, 0.5), 1100.0, (1.0, 0.9), 0.85, false),
-                preset("plastic", Color::srgb(0.75, 0.5, 0.95), 950.0, (0.4, 0.3), 0.4, false),
-                preset("metal", Color::srgb(0.95, 0.85, 0.35), 7800.0, (0.4, 0.3), 0.2, true),
+                preset(
+                    "glass",
+                    Color::srgb(0.35, 0.65, 0.95),
+                    2500.0,
+                    (0.1, 0.05),
+                    0.4,
+                    false,
+                ),
+                preset(
+                    "wood",
+                    Color::srgb(0.95, 0.6, 0.3),
+                    600.0,
+                    (0.6, 0.5),
+                    0.15,
+                    false,
+                ),
+                preset(
+                    "rubber",
+                    Color::srgb(0.45, 0.85, 0.5),
+                    1100.0,
+                    (1.0, 0.9),
+                    0.85,
+                    false,
+                ),
+                preset(
+                    "plastic",
+                    Color::srgb(0.75, 0.5, 0.95),
+                    950.0,
+                    (0.4, 0.3),
+                    0.4,
+                    false,
+                ),
+                preset(
+                    "metal",
+                    Color::srgb(0.95, 0.85, 0.35),
+                    7800.0,
+                    (0.4, 0.3),
+                    0.2,
+                    true,
+                ),
             ],
         }
     }

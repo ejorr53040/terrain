@@ -124,7 +124,7 @@ struct LiveTracking {
     track_time: Duration,
     rate: FrameRate,
     latency: Latency,
-    /// The user wants the preview shown (`P` toggles this).
+    /// The user wants the preview shown (`V` toggles this).
     wanted: bool,
     /// A camera image has reached the preview texture.
     has_frame: bool,
@@ -296,8 +296,13 @@ fn show_latest_frame(
     tracking.has_frame = true;
 }
 
-fn toggle_preview(keys: Res<ButtonInput<KeyCode>>, mut tracking: ResMut<LiveTracking>) {
-    if keys.just_pressed(KeyCode::KeyP) {
+fn toggle_preview(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut requests: ResMut<crate::Requests>,
+    mut tracking: ResMut<LiveTracking>,
+) {
+    // V, not P: P stamps a template.
+    if keys.just_pressed(KeyCode::KeyV) || std::mem::take(&mut requests.preview) {
         tracking.wanted = !tracking.wanted;
     }
 }

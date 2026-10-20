@@ -1,6 +1,6 @@
+use crate::support::*;
 use avian3d::prelude::*;
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
-use crate::support::*;
 use terrain_app::{Arena, CUBE_SIZE};
 
 /// Pinches at the middle of the view and drags right by 30 cm, `times` over.
@@ -52,7 +52,13 @@ fn a_shallow_arena_stops_a_stretch_short_of_its_depth() {
             hold(&[Pose::pinched(first)], SETTLE),
             hold(&[Pose::pinched(first), Pose::open(second)], SETTLE),
             hold(&[Pose::pinched(first), Pose::pinched(second)], SETTLE),
-            hold(&[Pose::pinched(first - Vec3::new(0.0, 0.0, 0.08)), Pose::pinched(second + Vec3::new(0.0, 0.0, 0.24))], SETTLE),
+            hold(
+                &[
+                    Pose::pinched(first - Vec3::new(0.0, 0.0, 0.08)),
+                    Pose::pinched(second + Vec3::new(0.0, 0.0, 0.24)),
+                ],
+                SETTLE,
+            ),
         ]
         .concat(),
         &[Vec3::ZERO],
@@ -79,7 +85,13 @@ fn a_stretched_shape_is_solid_all_along_its_new_length() {
             hold(&[Pose::pinched(first)], SETTLE),
             hold(&[Pose::pinched(first), Pose::open(second)], SETTLE),
             hold(&[Pose::pinched(first), Pose::pinched(second)], SETTLE),
-            hold(&[Pose::pinched(first - Vec3::X * 0.04), Pose::pinched(second + Vec3::X * 0.04)], SETTLE),
+            hold(
+                &[
+                    Pose::pinched(first - Vec3::X * 0.04),
+                    Pose::pinched(second + Vec3::X * 0.04),
+                ],
+                SETTLE,
+            ),
         ]
         .concat(),
         &[Vec3::ZERO],
@@ -94,5 +106,9 @@ fn a_stretched_shape_is_solid_all_along_its_new_length() {
                 .len()
         })
         .unwrap();
-    assert!(solid > 0, "the stretched end isn't solid; size {}", h.shape().size);
+    assert!(
+        solid > 0,
+        "the stretched end isn't solid; size {}",
+        h.shape().size
+    );
 }

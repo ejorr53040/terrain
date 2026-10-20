@@ -46,7 +46,11 @@ pub(crate) fn apply_physics(
 ) {
     let stepping = std::mem::take(&mut settings.bypass_change_detection().step);
     let s = &*settings;
-    let wanted = if s.gravity_on { Vec3::NEG_Y * s.gravity } else { Vec3::ZERO };
+    let wanted = if s.gravity_on {
+        Vec3::NEG_Y * s.gravity
+    } else {
+        Vec3::ZERO
+    };
     if gravity.0 != wanted {
         gravity.0 = wanted;
     }
@@ -58,7 +62,10 @@ pub(crate) fn apply_physics(
     if time.relative_speed() != s.time_scale {
         time.set_relative_speed(s.time_scale.max(0.0));
     }
-    let damping = (LinearDamping(s.linear_damping), AngularDamping(s.angular_damping));
+    let damping = (
+        LinearDamping(s.linear_damping),
+        AngularDamping(s.angular_damping),
+    );
     if settings.is_changed() {
         for entity in &shapes {
             commands.entity(entity).insert(damping);

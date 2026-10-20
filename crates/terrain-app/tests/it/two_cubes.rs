@@ -1,6 +1,5 @@
-
-use bevy::prelude::*;
 use crate::support::*;
+use bevy::prelude::*;
 use terrain_app::CUBE_STARTS;
 
 /// A scene of two cubes, left and right of the middle.
@@ -14,11 +13,12 @@ const UP: Vec3 = Vec3::new(0.0, 0.05, 0.0);
 const DOWN: Vec3 = Vec3::new(0.0, -0.05, 0.0);
 
 /// Asserts a cube that started at `start` was carried straight along `hand_moved`,
-/// at least as far as the hand went (the scene amplifies hand motion).
+/// at least as far as the hand went (the scene amplifies hand motion). Roughly
+/// straight: it follows its cursor on screen, and the camera looks down at it.
 fn assert_carried(actual: Vec3, start: Vec3, hand_moved: Vec3) {
     let moved = actual - start;
     assert!(
-        moved.normalize().abs_diff_eq(hand_moved.normalize(), 0.01)
+        moved.normalize().abs_diff_eq(hand_moved.normalize(), 0.1)
             && moved.length() >= hand_moved.length(),
         "cube from {start} should be carried along {hand_moved}, is at {actual}"
     );

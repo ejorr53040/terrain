@@ -1,8 +1,8 @@
 //! Materials: presets that set how shapes bounce, slide and weigh.
 
+use crate::support::*;
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use crate::support::*;
 use terrain_app::{Material, Materials, PhysicsSettings};
 
 /// One cube at `at` made of `material`, in a world with gravity.
@@ -42,7 +42,10 @@ fn slide(material: &str) -> f32 {
     let mut h = falling(material, Vec3::new(-0.3, -0.2, 0.0));
     h.run(SETTLE);
     let from = h.cube_at(0).x;
-    h.app.world_mut().entity_mut(h.cube).insert(LinearVelocity(Vec3::X * 1.0));
+    h.app
+        .world_mut()
+        .entity_mut(h.cube)
+        .insert(LinearVelocity(Vec3::X * 1.0));
     h.run(2 * SETTLE);
     h.cube_at(0).x - from
 }
@@ -66,7 +69,10 @@ fn editing_a_preset_changes_every_shape_made_of_it() {
 
 #[test]
 fn m_cycles_the_selected_shapes_material() {
-    let mut h = Harness::with_cubes(hold(&[Pose::open(Vec3::new(0.0, 0.0, 0.5))], 3 * SETTLE), &[Vec3::ZERO]);
+    let mut h = Harness::with_cubes(
+        hold(&[Pose::open(Vec3::new(0.0, 0.0, 0.5))], 3 * SETTLE),
+        &[Vec3::ZERO],
+    );
     h.run(SETTLE);
     let before = h.app.world().get::<Material>(h.cube).unwrap().0;
     h.press(KeyCode::KeyM);
@@ -80,7 +86,10 @@ fn without_gravity_a_shape_let_go_still_stays_put() {
     // The floating world as it was: a shove dies at once.
     let mut h = Harness::with_cubes(Vec::new(), &[Vec3::ZERO]);
     h.run(2);
-    h.app.world_mut().entity_mut(h.cube).insert(LinearVelocity(Vec3::X));
+    h.app
+        .world_mut()
+        .entity_mut(h.cube)
+        .insert(LinearVelocity(Vec3::X));
     h.run(SETTLE);
     assert!(h.cube_at(0).x < 0.05, "drifted to {}", h.cube_at(0));
 }

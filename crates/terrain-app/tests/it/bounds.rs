@@ -1,6 +1,5 @@
-
-use bevy::prelude::*;
 use crate::support::*;
+use bevy::prelude::*;
 use terrain_app::{Arena, CUBE_SIZE};
 use terrain_hands::HandFrame;
 
@@ -51,11 +50,7 @@ fn the_whole_box_is_in_view_of_the_scene_camera() {
         .unwrap();
     let clip_from_world = projection.get_clip_from_view() * camera.to_matrix().inverse();
     for i in 0..8 {
-        let corner = Vec3::select(
-            BVec3::new(i & 1 != 0, i & 2 != 0, i & 4 != 0),
-            max,
-            min,
-        );
+        let corner = Vec3::select(BVec3::new(i & 1 != 0, i & 2 != 0, i & 4 != 0), max, min);
         let clip = clip_from_world * corner.extend(1.0);
         let ndc = clip.truncate() / clip.w;
         assert!(

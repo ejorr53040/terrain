@@ -1,8 +1,8 @@
 //! The physics settings the overlay edits: gravity, pause and step, time
 //! scale and damping.
 
-use bevy::prelude::*;
 use crate::support::*;
+use bevy::prelude::*;
 use terrain_app::PhysicsSettings;
 
 /// One cube up high; `settings` changed before anything runs.
@@ -21,18 +21,30 @@ fn drop(h: &mut Harness, updates: usize) -> f32 {
 
 #[test]
 fn gravity_is_off_by_default_and_on_makes_shapes_fall() {
-    assert!(drop(&mut cube_with(|_| {}), 10) < 1e-3, "floating by default");
-    assert!(drop(&mut cube_with(|s| s.gravity_on = true), 10) > 0.1, "falls with gravity");
+    assert!(
+        drop(&mut cube_with(|_| {}), 10) < 1e-3,
+        "floating by default"
+    );
+    assert!(
+        drop(&mut cube_with(|s| s.gravity_on = true), 10) > 0.1,
+        "falls with gravity"
+    );
 }
 
 #[test]
 fn stronger_gravity_falls_faster() {
     let earth = drop(&mut cube_with(|s| s.gravity_on = true), 6);
-    let strong = drop(&mut cube_with(|s| {
-        s.gravity_on = true;
-        s.gravity = 20.0;
-    }), 6);
-    assert!(strong > 1.5 * earth, "20 m/s² dropped {strong}, 9.81 dropped {earth}");
+    let strong = drop(
+        &mut cube_with(|s| {
+            s.gravity_on = true;
+            s.gravity = 20.0;
+        }),
+        6,
+    );
+    assert!(
+        strong > 1.5 * earth,
+        "20 m/s² dropped {strong}, 9.81 dropped {earth}"
+    );
 }
 
 #[test]
@@ -53,19 +65,25 @@ fn pause_freezes_and_step_moves_on_one_frame() {
 #[test]
 fn half_time_scale_falls_less() {
     let full = drop(&mut cube_with(|s| s.gravity_on = true), 8);
-    let half = drop(&mut cube_with(|s| {
-        s.gravity_on = true;
-        s.time_scale = 0.5;
-    }), 8);
+    let half = drop(
+        &mut cube_with(|s| {
+            s.gravity_on = true;
+            s.time_scale = 0.5;
+        }),
+        8,
+    );
     assert!(half < 0.6 * full, "half speed dropped {half}, full {full}");
 }
 
 #[test]
 fn damping_slows_a_fall() {
     let free = drop(&mut cube_with(|s| s.gravity_on = true), 10);
-    let damped = drop(&mut cube_with(|s| {
-        s.gravity_on = true;
-        s.linear_damping = 5.0;
-    }), 10);
+    let damped = drop(
+        &mut cube_with(|s| {
+            s.gravity_on = true;
+            s.linear_damping = 5.0;
+        }),
+        10,
+    );
     assert!(damped < 0.7 * free, "damped dropped {damped}, free {free}");
 }

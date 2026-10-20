@@ -18,8 +18,8 @@ use std::path::PathBuf;
 
 use bevy::prelude::*;
 use terrain_app::{
-    Arena, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable,
-    Library, Material, Materials, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool, load_camera, start_tracking,
+    Arena, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable, Library, Material,
+    Materials, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool, load_camera, start_tracking,
 };
 use terrain_hands::{HandSource, ReplaySource};
 
@@ -71,16 +71,30 @@ fn main() -> AppExit {
         .insert_resource(Library::load(
             calibration_file().and_then(|f| Some(f.parent()?.join("templates"))),
         ))
-        .add_plugins((CursorPlugin, PreviewPlugin::new(tracking), overlay::OverlayPlugin))
+        .add_plugins((
+            CursorPlugin,
+            PreviewPlugin::new(tracking),
+            overlay::OverlayPlugin,
+        ))
         .add_systems(Startup, spawn_scene)
-        .add_systems(Update, (draw_box, paint_shapes, mesh_shapes, outline_selection, show_tool))
+        .add_systems(
+            Update,
+            (
+                draw_box,
+                paint_shapes,
+                mesh_shapes,
+                outline_selection,
+                show_tool,
+            ),
+        )
         .run()
 }
 
 /// The Arena's walls, as an outline.
 fn draw_box(mut gizmos: Gizmos, arena: Res<Arena>) {
     gizmos.cube(
-        Transform::from_translation((arena.min + arena.max) / 2.0).with_scale(arena.max - arena.min),
+        Transform::from_translation((arena.min + arena.max) / 2.0)
+            .with_scale(arena.max - arena.min),
         Color::srgba(0.7, 0.85, 1.0, 0.6),
     );
 }
@@ -155,7 +169,9 @@ fn show_tool(
     let template = library
         .templates
         .get(library.current)
-        .map_or(String::new(), |t| format!("\ntemplate {} (Tab next, P stamp, T save)", t.name));
+        .map_or(String::new(), |t| {
+            format!("\ntemplate {} (Tab next, P stamp, T save)", t.name)
+        });
     let skipped = match library.errors.len() {
         0 => String::new(),
         n => format!("\n{n} template file(s) skipped, see log"),
@@ -196,11 +212,7 @@ fn spawn_scene(mut commands: Commands) {
     ));
     // A row of cubes, one of each material.
     for (i, at) in CUBE_STARTS.into_iter().enumerate() {
-        commands.spawn((
-            Material(i),
-            Transform::from_translation(at),
-            Grabbable,
-        ));
+        commands.spawn((Material(i), Transform::from_translation(at), Grabbable));
     }
 }
 

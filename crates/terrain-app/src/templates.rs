@@ -147,13 +147,19 @@ fn built_in() -> Vec<Template> {
         tags: tags.iter().map(|t| t.to_string()).collect(),
         shapes,
     };
-    let mut pyramid: Vec<Part> = (0..3).flat_map(|x| (0..3).map(move |z| cube(x, 0, z))).collect();
+    let mut pyramid: Vec<Part> = (0..3)
+        .flat_map(|x| (0..3).map(move |z| cube(x, 0, z)))
+        .collect();
     pyramid.push(Part {
         taper: 1.0,
         ..cube(1, 1, 1)
     });
     vec![
-        template("line", &["row", "basic"], (0..3).map(|x| cube(x, 0, 0)).collect()),
+        template(
+            "line",
+            &["row", "basic"],
+            (0..3).map(|x| cube(x, 0, 0)).collect(),
+        ),
         template(
             "L",
             &["corner", "basic"],
@@ -162,18 +168,23 @@ fn built_in() -> Vec<Template> {
         template(
             "block",
             &["cube", "basic"],
-            (0..8).map(|i| cube(i & 1, (i >> 1) & 1, (i >> 2) & 1)).collect(),
+            (0..8)
+                .map(|i| cube(i & 1, (i >> 1) & 1, (i >> 2) & 1))
+                .collect(),
         ),
         template("pyramid", &["roof"], pyramid),
     ]
 }
 
-/// Saves and stamps asked for without their keys, by the overlay. Taken
-/// (and cleared) the next update, exactly as `T` and `P` would be.
+/// What the overlay's buttons ask for without their keys. Taken (and
+/// cleared) the next update, exactly as `T`, `P`, `R`, `C` and `V` would be.
 #[derive(Resource, Default, Debug)]
 pub struct Requests {
     pub save: bool,
     pub stamp: bool,
+    pub reset: bool,
+    pub calibrate: bool,
+    pub preview: bool,
 }
 
 /// `T`, `Tab` and `P`.
@@ -192,7 +203,10 @@ pub(crate) fn use_templates(
     over_ui: Res<OverlayArea>,
     scene_camera: SceneCamera,
 ) {
-    let Requests { save, stamp } = std::mem::take(&mut *requests);
+    let (save, stamp) = (
+        std::mem::take(&mut requests.save),
+        std::mem::take(&mut requests.stamp),
+    );
     if keys.just_pressed(KeyCode::Tab) && !library.templates.is_empty() {
         library.current = (library.current + 1) % library.templates.len();
     }
@@ -285,7 +299,9 @@ pub(crate) fn use_templates(
                         roundness: part.roundness,
                         taper: part.taper,
                     },
-                    materials.index(&part.material).map_or_else(Material::default, Material),
+                    materials
+                        .index(&part.material)
+                        .map_or_else(Material::default, Material),
                     Transform::from_translation(at).with_rotation(Quat::from_xyzw(
                         part.rotation.0,
                         part.rotation.1,

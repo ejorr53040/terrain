@@ -1,6 +1,5 @@
-
-use bevy::prelude::*;
 use crate::support::*;
+use bevy::prelude::*;
 use terrain_app::HandCursor;
 
 /// Straight ahead of the camera, so the middle of the screen.
@@ -108,6 +107,46 @@ fn a_held_cube_stays_under_its_cursor_with_the_hand_near_or_far() {
         assert!(
             cube.abs_diff_eq(cursor.at, 0.01),
             "hand {distance} m away: cube is on screen at {cube}, its cursor at {}",
+            cursor.at
+        );
+    }
+}
+
+#[test]
+fn a_held_cube_stays_under_its_cursor_when_the_hand_moves_along_its_sight_line() {
+    // Carry the cube off centre, then slide the hand along the camera's line
+    // of sight through it, as a misjudged depth does: the cursor doesn't
+    // move, so the cube mustn't move off it on screen.
+    let carry = Vec3::new(0.15, 0.08, 0.0);
+    let ahead = Vec3::new(0.0, 0.0, 1.0);
+    let off = ahead + carry;
+    let mut frames = [
+        hold(&[Pose::open(ahead)], SETTLE),
+        hold(&[Pose::pinched(ahead)], SETTLE),
+        hold(&[Pose::pinched(off)], SETTLE),
+    ]
+    .concat();
+    for scale in [0.8, 1.25] {
+        frames.extend(hold(&[Pose::pinched(off * scale)], SETTLE));
+    }
+    let mut h = Harness::with_cubes(frames, &[Vec3::ZERO]);
+    h.run(3 * SETTLE);
+    let [cursor] = cursors(&mut h)[..] else {
+        panic!("one hand should show one cursor");
+    };
+    let at = h.cube_at(0);
+    let start = on_screen(&mut h, at);
+    assert!(
+        start.abs_diff_eq(cursor.at, 0.01),
+        "carried off centre under the cursor"
+    );
+    for scale in [0.8, 1.25] {
+        h.run(SETTLE);
+        let at = h.cube_at(0);
+        let cube = on_screen(&mut h, at);
+        assert!(
+            cube.abs_diff_eq(cursor.at, 0.01),
+            "hand at {scale}x along its sight line: cube is on screen at {cube}, its cursor at {}",
             cursor.at
         );
     }

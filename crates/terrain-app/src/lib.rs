@@ -19,15 +19,15 @@ use terrain_hands::{
     TrackedHands,
 };
 
-pub use build::{OverlayArea, Placed, Selection};
+pub use build::{OverlayArea, OverlayOpen, OverlayPointer, Placed, Selection};
+pub use calibration::{CALIBRATION_DISTANCE_M, Calibration, load_camera};
+pub use cursor::CursorPlugin;
 pub use materials::{Material, Materials, Preset};
+pub use preview::{DEFAULT_CAMERA, PreviewPlugin, start_tracking};
 pub use settings::PhysicsSettings;
 pub use shape::Shape;
 pub use templates::{Library, Part, Requests, Template};
 pub use tools::Tool;
-pub use calibration::{CALIBRATION_DISTANCE_M, Calibration, load_camera};
-pub use cursor::CursorPlugin;
-pub use preview::{DEFAULT_CAMERA, PreviewPlugin, start_tracking};
 
 /// Hand motion is amplified by this much when applied to a grabbed entity
 /// in a scene with no camera. With one, the gain is set at the pinch so the
@@ -167,6 +167,8 @@ impl Plugin for GrabPlugin {
         .init_resource::<Arena>()
         .init_resource::<Selection>()
         .init_resource::<OverlayArea>()
+        .init_resource::<OverlayOpen>()
+        .init_resource::<OverlayPointer>()
         .init_resource::<Tool>()
         .init_resource::<Materials>()
         .init_resource::<Library>()
@@ -189,6 +191,8 @@ impl Plugin for GrabPlugin {
                 reset,
                 sync_cursors,
                 drive_grab,
+                build::hot_edge,
+                build::point_at_overlay,
                 settle_copies,
                 build::select,
                 build::edit,
@@ -231,6 +235,9 @@ struct Held {
     target_size: Vec3,
     /// How far the entity moves per meter the hand moves, along each axis.
     gain: Vec3,
+    /// Where the entity sits on screen from its hand's cursor, kept while
+    /// one hand holds it; `None` without a scene camera.
+    offset: Option<Vec2>,
     /// Capture time of the last frame the holding hand was seen in.
     last_seen_ms: u64,
     /// A second hand on the same entity, stretching it.
@@ -254,10 +261,12 @@ const STRETCH_MIN: f32 = 0.03;
 
 impl Held {
     /// Carries on from where the entity is now, measuring `hand`'s motion from here.
-    fn reclutch(&mut self, hand: &HandState) {
+    fn reclutch(&mut self, hand: &HandState, screen: Option<&Screen>) {
         self.hand = *hand;
         self.transform = self.target;
         self.size = self.target_size;
+        self.offset = screen
+            .and_then(|s| Some(s.project(self.target.translation)? - s.pointing(hand.in_image)));
     }
 }
 
@@ -323,9 +332,7 @@ fn settle_copies(mut commands: Commands, grab: Res<Grab>, copies: Query<Entity, 
 // ponytail: rebuilt every change, i.e. every frame of a stretch; throttle if that shows up in a profile.
 fn fit_colliders(mut commands: Commands, shapes: Query<(Entity, &Shape), Changed<Shape>>) {
     for (entity, shape) in &shapes {
-        commands
-            .entity(entity)
-            .insert(shape.collider());
+        commands.entity(entity).insert(shape.collider());
     }
 }
 
@@ -365,12 +372,13 @@ fn steer(
     }
 }
 
-/// `R`, or a fresh calibration, puts the scene back as it began: every
+/// `R` (or its button), or a fresh calibration, puts the scene back as it began: every
 /// `Grabbable` it began with where it started, deleted ones too, placed ones
 /// gone, and nothing held.
 fn reset(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
+    mut requests: ResMut<Requests>,
     mut calibration: ResMut<Calibration>,
     mut grab: ResMut<Grab>,
     mut grabbables: Query<(
@@ -383,7 +391,8 @@ fn reset(
     )>,
 ) {
     let calibrated = std::mem::take(&mut calibration.reset_scene);
-    if keys.just_pressed(KeyCode::KeyR) || calibrated {
+    let asked = std::mem::take(&mut requests.reset);
+    if keys.just_pressed(KeyCode::KeyR) || asked || calibrated {
         grab.held.clear();
         grab.last = None;
         for (entity, mut transform, mut shape, start, placed, deleted) in &mut grabbables {
@@ -493,6 +502,17 @@ impl Screen {
         pointing.cmpge(min).all() && pointing.cmple(max).all()
     }
 
+    /// The point on screen at `point`, as far from the camera as `depth_of`.
+    pub(crate) fn on_sight_line(&self, point: Vec2, depth_of: Vec3) -> Option<Vec3> {
+        let clip = self.clip_from_world * depth_of.extend(1.0);
+        let ndc = point / Vec2::new(self.aspect, 1.0);
+        (clip.w > 0.0).then(|| {
+            self.clip_from_world
+                .inverse()
+                .project_point3(ndc.extend(clip.z / clip.w))
+        })
+    }
+
     /// Where the line of sight through `in_view` meets the plane `z = 0`,
     /// which faces the camera through the middle of the scene.
     pub(crate) fn on_middle_plane(&self, in_view: Vec2) -> Option<Vec3> {
@@ -526,12 +546,14 @@ fn drive_grab(
     mut grabbables: Query<(Entity, &Transform, &mut Shape), With<Grabbable>>,
     scene_camera: SceneCamera,
     arena: Res<Arena>,
+    overlay: Res<OverlayArea>,
 ) {
     let Some(frame) = hands.fresh.take() else {
         return;
     };
     // Checked against each new frame, not only hand-less ones: the tracker
     // may go quiet and come back with the hand already there.
+    let screen = Screen::of(&scene_camera);
     grab.held
         .retain(|held| frame.t_ms.saturating_sub(held.last_seen_ms) <= FORGET_AFTER_MS);
     grab.held.retain_mut(|held| {
@@ -540,8 +562,21 @@ fn drive_grab(
             return match first {
                 Some(hand) if hand.pinching => {
                     held.last_seen_ms = frame.t_ms;
-                    held.target.translation = held.transform.translation
-                        + held.gain * (hand.position - held.hand.position);
+                    // ponytail: kept in by the shape's unturned size; a turned shape can
+                    // still meet a wall early and slip off the cursor.
+                    let half = held.target_size / 2.0;
+                    let moved = (held.transform.translation
+                        + held.gain * (hand.position - held.hand.position))
+                        .clamp(arena.min + half, arena.max - half);
+                    // Only the distance comes from the hand's motion; on screen it
+                    // stays on the cursor, which a misjudged hand depth doesn't move.
+                    held.target.translation = screen
+                        .as_ref()
+                        .zip(held.offset)
+                        .and_then(|(s, offset)| {
+                            s.on_sight_line(s.pointing(hand.in_image) + offset, moved)
+                        })
+                        .unwrap_or(moved);
                     // The hand's turn since the pinch, applied in the scene frame (on the left).
                     held.target.rotation =
                         hand.rotation * held.hand.rotation.inverse() * held.transform.rotation;
@@ -573,7 +608,7 @@ fn drive_grab(
                 let b = *b;
                 held.second = None;
                 held.last_seen_ms = frame.t_ms;
-                held.reclutch(&b);
+                held.reclutch(&b, screen.as_ref());
                 true
             }
             (Some(a), _) if !a.pinching => false,
@@ -584,7 +619,7 @@ fn drive_grab(
             {
                 let a = *a;
                 held.second = None;
-                held.reclutch(&a);
+                held.reclutch(&a, screen.as_ref());
                 true
             }
             // A hand is out of view for now: hold still.
@@ -599,8 +634,12 @@ fn drive_grab(
             shape.size = held.target_size;
         }
     }
-    let screen = Screen::of(&scene_camera);
-    for hand in frame.hands.iter().filter(|h| h.pinch_started) {
+    // A pinch over the overlay works the overlay, not the scene.
+    for hand in frame
+        .hands
+        .iter()
+        .filter(|h| h.pinch_started && !overlay.covers(h.in_image))
+    {
         if grab.held.iter().any(|held| {
             held.hand.id == hand.id || held.second.as_ref().is_some_and(|s| s.hand.id == hand.id)
         }) {
@@ -623,7 +662,7 @@ fn drive_grab(
             let axes =
                 [Vec3::X, Vec3::Y, Vec3::Z].map(|a| (held.target.rotation * a).dot(along).abs());
             let axis = (0..3).max_by(|&i, &j| axes[i].total_cmp(&axes[j])).unwrap();
-            held.reclutch(first);
+            held.reclutch(first, screen.as_ref());
             held.second = Some(Second {
                 hand: *hand,
                 axis,
@@ -658,7 +697,9 @@ fn drive_grab(
                 }
                 let material = made_of.get(entity).copied().unwrap_or_default();
                 entity = commands
-                    .spawn((Grabbable, Placed, *shape, material, *transform, Sensor, Copying))
+                    .spawn((
+                        Grabbable, Placed, *shape, material, *transform, Sensor, Copying,
+                    ))
                     .id();
             }
             // The view each camera has, at the hand's and the entity's depth,
@@ -686,6 +727,9 @@ fn drive_grab(
                 size: shape.size,
                 target_size: shape.size,
                 gain,
+                offset: screen.as_ref().and_then(|s| {
+                    Some(s.project(transform.translation)? - s.pointing(hand.in_image))
+                }),
                 last_seen_ms: frame.t_ms,
                 second: None,
             });
