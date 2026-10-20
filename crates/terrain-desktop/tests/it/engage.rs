@@ -1,10 +1,9 @@
 //! A hand takes control of the desktop only when it's raised open into the
 //! reach, so hands at the keyboard don't click as they type.
 
-mod support;
 
 use glam::Vec3;
-use support::{Grip, Script, buttons};
+use crate::support::{Grip, Script, buttons};
 use terrain_desktop::{Button, Input};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);

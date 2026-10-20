@@ -1,10 +1,9 @@
 //! A Vee scrolls: the further the hand moves from where the Vee began, the
 //! faster the page scrolls that way, with the pointer held still.
 
-mod support;
 
 use glam::{Vec2, Vec3};
-use support::{Grip, Script, buttons, last_point};
+use crate::support::{Grip, Script, buttons, last_point};
 use terrain_desktop::Input;
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);

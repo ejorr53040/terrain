@@ -1,9 +1,8 @@
 //! A fist drags the window under the pointer (Super + left button).
 
-mod support;
 
 use glam::Vec3;
-use support::{Grip, Script, buttons, point_at_each_button};
+use crate::support::{Grip, Script, buttons, point_at_each_button};
 use terrain_desktop::{Button, Input};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);

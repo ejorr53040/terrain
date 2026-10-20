@@ -1,9 +1,8 @@
 //! Desktop control says what the hand is doing, for an on-screen indicator.
 
-mod support;
 
 use glam::Vec3;
-use support::{Grip, Script};
+use crate::support::{Grip, Script};
 use terrain_desktop::Status;
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);

@@ -1,10 +1,9 @@
 //! A pinch works like a finger on a touchscreen: a tap clicks, a pinch
 //! that moves drags, a pinch held still opens the context menu.
 
-mod support;
 
 use glam::Vec3;
-use support::{Grip, Script, buttons, point_at_each_button};
+use crate::support::{Grip, Script, buttons, point_at_each_button};
 use terrain_desktop::{Button, Input};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);

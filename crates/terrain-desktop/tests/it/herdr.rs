@@ -2,10 +2,9 @@
 //! key chords: a fist moves the focus between panes, a pinch steps
 //! through tabs (left, right) and workspaces (up, down).
 
-mod support;
 
 use glam::Vec3;
-use support::{Grip, Script, buttons};
+use crate::support::{Grip, Script, buttons};
 use terrain_desktop::{Button, Input, Status};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
