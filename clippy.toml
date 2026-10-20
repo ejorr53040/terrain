@@ -1,0 +1,4 @@
+# Bevy systems take their data as parameters (up to 16) and as nested Query
+# tuples, so clippy's defaults flag ordinary systems.
+too-many-arguments-threshold = 16
+type-complexity-threshold = 1000
