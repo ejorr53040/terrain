@@ -1,7 +1,9 @@
-// The built-in gestures. A pinch works like a finger on a touchscreen: a
+// The built-in gestures. A quick flick of a pinch or fist is a herdr
+// command (see the states below). A pinch works like a finger on a touchscreen: a
 // tap clicks where it closed, moving drags, holding still then letting go
 // right-clicks. A fist that moves or holds still drags the window under the
-// pointer (Super + left button, the window manager's window drag).
+// pointer (Super + left button, the window manager's window drag). A Vee
+// scrolls, faster the further the hand moves from where the Vee began.
 (
     gestures: [
         (
@@ -15,9 +17,16 @@
                     label: "🤏 Pinch",
                     pointer: Frozen,
                     on: [
+                        // A quick flick is a herdr command: Alt + left/right
+                        // steps through tabs, Alt + up/down through workspaces.
+                        (when: [Flicked(Left, 0.15, 100)], to: "tab_left"),
+                        (when: [Flicked(Right, 0.15, 100)], to: "tab_right"),
+                        (when: [Flicked(Up, 0.15, 100)], to: "workspace_up"),
+                        (when: [Flicked(Down, 0.15, 100)], to: "workspace_down"),
                         (when: [Pose(Open, 30)], to: "tap"),
                         (when: [Pose(Fist, 30)], to: "fist_forming"),
-                        (when: [Moved(0.02)], to: "drag"),
+                        // A move waits out the flick first: keep MovedFor()'s ms equal to Flicked()'s.
+                        (when: [MovedFor(0.02, 100)], to: "drag"),
                         (when: [After(600)], to: "long_press"),
                     ],
                 ),
@@ -38,6 +47,31 @@
                         (when: [Pose(Fist, 30)], to: "dropped"),
                     ],
                 ),
+                // Each holds until the pinch opens, so letting go doesn't click.
+                "tab_left": (
+                    label: "🤏 ← Tab",
+                    pointer: Frozen,
+                    enter: [Press(Alt), Press(ArrowLeft), Release(ArrowLeft), Release(Alt)],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
+                ),
+                "tab_right": (
+                    label: "🤏 → Tab",
+                    pointer: Frozen,
+                    enter: [Press(Alt), Press(ArrowRight), Release(ArrowRight), Release(Alt)],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
+                ),
+                "workspace_up": (
+                    label: "🤏 ↑ Workspace",
+                    pointer: Frozen,
+                    enter: [Press(Alt), Press(ArrowUp), Release(ArrowUp), Release(Alt)],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
+                ),
+                "workspace_down": (
+                    label: "🤏 ↓ Workspace",
+                    pointer: Frozen,
+                    enter: [Press(Alt), Press(ArrowDown), Release(ArrowDown), Release(Alt)],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
+                ),
                 "tap": (enter: [Press(Left), Release(Left)]),
                 "right_click": (enter: [Press(Right), Release(Right)]),
                 // Tightening into a fist was the fist forming: no click.
@@ -54,11 +88,44 @@
                     label: "✊ Fist",
                     pointer: Frozen,
                     on: [
+                        // A quick flick is a herdr command: Ctrl + Alt +
+                        // h/j/k/l moves the focus to the next pane that way.
+                        (when: [Flicked(Left, 0.15, 100)], to: "pane_left"),
+                        (when: [Flicked(Right, 0.15, 100)], to: "pane_right"),
+                        (when: [Flicked(Up, 0.15, 100)], to: "pane_up"),
+                        (when: [Flicked(Down, 0.15, 100)], to: "pane_down"),
                         (when: [Pose(Open, 30)], to: "dropped"),
-                        (when: [Moved(0.02)], to: "window_drag"),
+                        // A move waits out the flick first: keep MovedFor()'s ms equal to Flicked()'s.
+                        (when: [MovedFor(0.02, 100)], to: "window_drag"),
                         // Held still: a drag about to start.
                         (when: [After(600)], to: "window_drag"),
                     ],
+                ),
+                // Each holds until the fist opens, so the flick's
+                // follow-through can't start a window drag.
+                "pane_left": (
+                    label: "✊ ← Pane",
+                    pointer: Frozen,
+                    enter: [Press(Ctrl), Press(Alt), Press(H), Release(H), Release(Alt), Release(Ctrl)],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
+                ),
+                "pane_right": (
+                    label: "✊ → Pane",
+                    pointer: Frozen,
+                    enter: [Press(Ctrl), Press(Alt), Press(L), Release(L), Release(Alt), Release(Ctrl)],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
+                ),
+                "pane_up": (
+                    label: "✊ ↑ Pane",
+                    pointer: Frozen,
+                    enter: [Press(Ctrl), Press(Alt), Press(K), Release(K), Release(Alt), Release(Ctrl)],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
+                ),
+                "pane_down": (
+                    label: "✊ ↓ Pane",
+                    pointer: Frozen,
+                    enter: [Press(Ctrl), Press(Alt), Press(J), Release(J), Release(Alt), Release(Ctrl)],
+                    on: [(when: [Pose(Open, 30)], to: "dropped")],
                 ),
                 // A fist opening reads as a pinch on its way: still the fist.
                 "window_drag": (
@@ -67,6 +134,24 @@
                     on: [(when: [Pose(Open, 30)], to: "dropped")],
                 ),
                 "dropped": (),
+            },
+        ),
+        (
+            pose: Vee,
+            settle_ms: 100,
+            start: "scroll",
+            states: {
+                "scroll": (
+                    label: "✌ Scroll",
+                    pointer: Frozen,
+                    scroll: Some((dead_zone: 0.05, rate: 40.0)),
+                    on: [
+                        (when: [Pose(Open, 60)], to: "done"),
+                        (when: [Pose(Pinch, 60)], to: "done"),
+                        (when: [Pose(Fist, 60)], to: "done"),
+                    ],
+                ),
+                "done": (),
             },
         ),
     ],

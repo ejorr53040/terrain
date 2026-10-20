@@ -7,7 +7,6 @@ use support::{Grip, Script};
 use terrain_desktop::Status;
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
-const OTHER: Vec3 = Vec3::new(0.12, -0.05, 0.6);
 /// A gesture, by the label the indicator shows for it.
 fn gesture(label: &str) -> Status {
     Status::Gesture(label.into())
@@ -53,18 +52,18 @@ fn a_fist_is_a_window_drag_once_it_moves() {
             .hold(AHEAD, Grip::Fist, 5)
     };
     assert_eq!(fist().status(), gesture("✊ Fist"));
-    let moved = fist().sweep(AHEAD, AHEAD + Vec3::new(0.05, 0.0, 0.0), Grip::Fist, 5);
+    let to = AHEAD + Vec3::new(0.05, 0.0, 0.0);
+    // Past the 100 ms a flick has to happen in.
+    let moved = fist().sweep(AHEAD, to, Grip::Fist, 5).hold(to, Grip::Fist, 4);
     assert_eq!(moved.status(), gesture("✊ Window drag"));
 }
 
 #[test]
-fn the_other_hand_pinching_is_scrolling() {
-    let scrolling = Script::default().hold(AHEAD, Grip::Open, 20).hold_two(
-        (AHEAD, Grip::Open),
-        (OTHER, Grip::Pinch),
-        6,
-    );
-    assert_eq!(scrolling.status(), gesture("↕ Scroll"));
+fn a_vee_is_scrolling() {
+    let scrolling = Script::default()
+        .hold(AHEAD, Grip::Open, 20)
+        .hold(AHEAD, Grip::Vee, 6);
+    assert_eq!(scrolling.status(), gesture("✌ Scroll"));
 }
 
 #[test]

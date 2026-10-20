@@ -27,6 +27,17 @@ const FIST_CLOSE_REACH: f32 = 1.1;
 /// loose fist mostly reads 0.8–1.0, a straight finger about 1.8.
 const FIST_OPEN_REACH: f32 = 1.25;
 
+/// A Vee closes once the index and middle fingers both reach past this...
+const VEE_STRAIGHT_REACH: f32 = 1.55;
+/// ...while the ring and little fingers' mean reach is below this...
+const VEE_CURLED_REACH: f32 = 1.5;
+/// ...and opens once that mean passes this, or index or middle drops below
+/// `VEE_BENT_REACH`. Measured on the Vee clips: a real Vee's curled fingers
+/// read 1.15–1.55 (only half curled, without a thumb on them), open ones
+/// 1.7–1.85, straight index and middle 1.65–1.95.
+const VEE_OPEN_REACH: f32 = 1.6;
+const VEE_BENT_REACH: f32 = 1.45;
+
 /// Calibration needs the hand in at least this many frames...
 const CALIBRATION_MIN_FRAMES: usize = 10;
 /// ...held this still: RMS distance of the palm from its mean (meters).
@@ -214,6 +225,8 @@ pub struct HandState {
     /// Every finger is folded into the palm. A fist's thumb often rests on
     /// the index finger, so it may read as `pinching` too.
     pub fist: bool,
+    /// Index and middle fingers straight, ring and little finger curled.
+    pub vee: bool,
     /// The pinch closed in this frame: it was open in the hand's last one.
     pub pinch_started: bool,
 }
@@ -268,6 +281,7 @@ struct Track {
     last_seen_ms: u64,
     pinching: bool,
     fist: bool,
+    vee: bool,
     /// Frames in a row a held pinch has read open.
     open_frames: u32,
     /// x and y, with z held at 0...
@@ -285,6 +299,7 @@ impl Track {
             last_seen_ms: t_ms,
             pinching: false,
             fist: false,
+            vee: false,
             open_frames: 0,
             across: Vec3Filter::new(POSITION_SMOOTHING),
             depth: Vec3Filter::new(DEPTH_SMOOTHING),
@@ -410,6 +425,13 @@ impl HandStateEstimator {
         } else {
             reach < FIST_CLOSE_REACH
         };
+        let [index, middle, ring, little] = hand.finger_reaches();
+        let (straight, curled) = (index.min(middle), (ring + little) / 2.0);
+        track.vee = if track.vee {
+            straight >= VEE_BENT_REACH && curled <= VEE_OPEN_REACH
+        } else {
+            straight > VEE_STRAIGHT_REACH && curled < VEE_CURLED_REACH
+        };
         let palm = self.camera.tilt * (origin + hand.palm_center_offset());
         let rotation = self.camera.tilt * rotation;
         let across = track.across.filter(palm.with_z(0.0), dt);
@@ -422,6 +444,7 @@ impl HandStateEstimator {
             rotation: track.rotation.filter(rotation, dt),
             pinching: track.pinching,
             fist: track.fist,
+            vee: track.vee,
             pinch_started: track.pinching && !was_pinching,
         })
     }

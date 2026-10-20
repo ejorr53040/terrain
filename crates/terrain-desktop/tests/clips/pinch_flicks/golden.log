@@ -1,0 +1,16 @@
+# → is a drag: the pinch reads open during that flick (pose dropout, see #50); ←↑↓ flick
+  1499 ms  Press(Alt) at (0.70, 0.41)
+  1499 ms  Press(ArrowLeft) at (0.70, 0.41)
+  1499 ms  Release(ArrowLeft) at (0.70, 0.41)
+  1499 ms  Release(Alt) at (0.70, 0.41)
+  3866 ms  Press(Left) at (0.60, 0.38)
+  3966 ms  Release(Left) at (0.94, 0.37)
+  5299 ms  Press(Alt) at (0.57, 0.39)
+  5299 ms  Press(ArrowUp) at (0.57, 0.39)
+  5299 ms  Release(ArrowUp) at (0.57, 0.39)
+  5299 ms  Release(Alt) at (0.57, 0.39)
+  7266 ms  Press(Alt) at (0.58, 0.32)
+  7266 ms  Press(ArrowDown) at (0.58, 0.32)
+  7266 ms  Release(ArrowDown) at (0.58, 0.32)
+  7266 ms  Release(Alt) at (0.58, 0.32)
+300 frames; pointer ranged x 0.31..0.94, y 0.30..1.00

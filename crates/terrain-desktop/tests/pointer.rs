@@ -58,7 +58,7 @@ fn reaching_past_the_edge_of_the_reach_pins_the_pointer_to_the_screen_edge() {
 fn a_hand_that_leaves_view_mid_drag_lets_go() {
     let inputs = Script::default()
         .hold(AHEAD, Grip::Open, 20)
-        .sweep(AHEAD, AHEAD + Vec3::new(0.05, 0.0, 0.0), Grip::Pinch, 10)
+        .sweep(AHEAD, AHEAD + Vec3::new(0.05, 0.0, 0.0), Grip::Pinch, 15)
         .gone(20)
         .run();
     assert_eq!(

@@ -1,1 +1,7 @@
 /target
+# Webcam frames and clips can show people: never commit them. (MediaPipe's
+# stock test images were added before this rule and stay tracked.)
+*.jpg
+*.jpeg
+*.png
+*.mjpg

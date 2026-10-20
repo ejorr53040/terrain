@@ -189,7 +189,7 @@ finish() {
 # golden replays (#18). Re-running offers to keep clips already recorded.
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-TARGET=${CARGO_TARGET_DIR:-$HOME/cs/terrain/target}
+TARGET=${CARGO_TARGET_DIR:-$ROOT/target}
 REPLAY_CLIP=$TARGET/release/examples/replay_clip
 REPLAY_DESKTOP=$TARGET/release/examples/replay_desktop
 RAW=$HOME/.cache/terrain/clips/gestures
@@ -197,7 +197,7 @@ OUT=$ROOT/crates/terrain-desktop/tests/clips
 CAMERA=/dev/video0
 SECONDS_PER_CLIP=10
 
-TOTAL_STAGES=12
+TOTAL_STAGES=15
 
 # camera_free waits until no other program holds the camera.
 camera_free() {
@@ -334,21 +334,21 @@ t 5–7  hold it there (2 s)
 t 7–8  bring it back to where the Vee began, then open the hand
 t 8    $LOWER" \
 "- the hand takes control
-- PENDING until Vee exists (#22): scrolls up while the Vee is above where
-  it began, faster the further up; stops when it returns; the pointer stays
-  frozen; no buttons
+- scrolls up while the Vee is above where it began, faster the further up;
+  stops when it returns; the pointer stays frozen; no buttons
 - control let go after the hand is lowered"
 
 clip vee_down "Vee scroll down" \
 "$RAISE
 t 4    make a Vee: index and middle fingers up, the others curled
-t 4–5  move the Vee down about 10 cm
+t 4–5  move the Vee down about 10 cm (keep the hand in the camera's view;
+       curl the ring and little fingers right in)
 t 5–7  hold it there (2 s)
 t 7–8  bring it back to where the Vee began, then open the hand
 t 8    $LOWER" \
 "- the hand takes control
-- PENDING until Vee exists (#22): scrolls down while the Vee is below where
-  it began; stops when it returns; the pointer stays frozen; no buttons
+- scrolls down while the Vee is below where it began; stops when it
+  returns; the pointer stays frozen; no buttons
 - control let go after the hand is lowered"
 
 clip vee_sideways "Vee scroll sideways" \
@@ -359,8 +359,8 @@ t 5–7  move it about 10 cm left of where it began and hold it there
 t 7–8  bring it back to where the Vee began, then open the hand
 t 8    $LOWER" \
 "- the hand takes control
-- PENDING until Vee exists (#22): scrolls right, then left; stops when it
-  returns; the pointer stays frozen; no buttons
+- scrolls right, then left; stops when it returns; the pointer stays
+  frozen; no buttons
 - control let go after the hand is lowered"
 
 clip fist_drag "Fist window drag" \
@@ -420,6 +420,45 @@ t 7    $LOWER" \
 - no Super + F, no left or right click
 - control let go after the hand is lowered"
 
+clip fist_flicks "Fist flicks (herdr panes)" \
+"Before recording: focus a herdr terminal split into panes.
+Flick the way you naturally would; don't slow down to be careful.
+$RAISE
+Between flicks, open the hand and hold it still so each flick stands apart.
+t 2.5  make a fist and flick it ~10 cm LEFT, then open the hand
+t 4.5  fist, flick RIGHT, open
+t 6.5  fist, flick UP, open
+t 8.5  fist, flick DOWN, open" \
+"- the hand takes control
+- four pane moves, in order: Ctrl+Alt+H, Ctrl+Alt+L, Ctrl+Alt+K, Ctrl+Alt+J
+  (a flick covers 0.15 screen widths within 100 ms, however long the fist
+  was held first; a slower move becomes a window drag)
+- no left or right click"
+
+clip pinch_flicks "Pinch flicks (herdr tabs, workspaces)" \
+"Before recording: focus a herdr terminal with a few tabs.
+Flick the way you naturally would; don't slow down to be careful.
+$RAISE
+t 4    pinch and flick ~10 cm left, then open the hand
+t 5.5  pinch, flick right, open
+t 7    pinch, flick up, open
+t 8.5  pinch, flick down, open" \
+"- the hand takes control
+- four steps, in order: Alt+Left, Alt+Right, Alt+Up, Alt+Down
+  (same speed rule as fist flicks; a slower move becomes a drag)
+- no right click"
+
+clip slow_drags "Slow drags each way (no flicks)" \
+"Before recording: focus an empty desktop or a scratch window.
+$RAISE
+t 3–4  pinch, drag slowly ~10 cm left (about a second), open
+t 5–6  pinch, drag slowly right back, open
+t 7–8  pinch, drag slowly up, open
+t 8.5–9.5 pinch, drag slowly down, open" \
+"- the hand takes control
+- four drags (Press Left, the pointer moves, Release Left)
+- no Alt chords: slow moves never flick"
+
 finish
 note "Clips are in ${OUT#"$ROOT"/} (frames.json, golden.log, intent.md each)."
-note "Raw JPEGs are in $RAW. Tell Claude to check them for #16 and #18."
+note "Raw JPEGs are in $RAW. Tell Claude to check them (flicks: #28)."
