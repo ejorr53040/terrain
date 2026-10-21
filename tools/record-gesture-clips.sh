@@ -195,9 +195,9 @@ REPLAY_DESKTOP=$TARGET/release/examples/replay_desktop
 RAW=$HOME/.cache/terrain/clips/gestures
 OUT=$ROOT/crates/terrain-desktop/tests/clips
 CAMERA=/dev/video0
-SECONDS_PER_CLIP=10
+SECONDS_PER_CLIP=${SECONDS_PER_CLIP:-10}
 
-TOTAL_STAGES=15
+TOTAL_STAGES=18
 
 # camera_free waits until no other program holds the camera.
 camera_free() {
@@ -458,6 +458,44 @@ t 8.5–9.5 pinch, drag slowly down, open" \
 "- the hand takes control
 - four drags (Press Left, the pointer moves, Release Left)
 - no Alt chords: slow moves never flick"
+
+clip full_screen_motion "Spread (full screen)" \
+"Before recording: focus a scratch window that isn't full screen.
+t 0–0.5  hands on the keyboard
+t 0.5–1.5 lift both hands open in front of the chest, about a shoulder
+       width apart; don't raise either into the reach
+t 2    bring the palms together, then spread them apart quickly
+t 4    together again, then spread
+t 6–7  together again, then spread
+t 8    lower both hands back to the keyboard and leave them there" \
+"- three full-screen toggles (Super+F), one per Spread; the hands stay low,
+  so neither takes control (a Spread doesn't need it)
+- no clicks"
+
+clip spread_in_control "Spreads at chest height, a hand in control" \
+"Record with SECONDS_PER_CLIP=15.
+Before recording: focus a scratch window that isn't full screen.
+t 0–2  hands on the keyboard
+t 2–3  raise your right hand open, palm to the camera, to chest height in
+       front of the screen; hold it still for a full second (it takes control)
+t 4    bring the left hand up beside it, then Spread: palms together,
+       then apart quickly, the way you do it live
+t 6, 8, 10, 12  four more Spreads, resting open and still between them
+t 13   lower both hands back to the keyboard and leave them there" \
+"- the hand takes control
+- five full-screen toggles (Super+F), one per Spread
+- no clicks, drags or window drags"
+
+clip not_full_screen "Both hands, not the full-screen motion" \
+"Before recording: focus a scratch window that isn't full screen.
+t 0–2  hands on the keyboard
+t 2–3  lift both hands off the keyboard and stretch them wide apart, as
+       if stretching your arms; hold a second
+t 4–5  drop them back to the keyboard
+t 6    clap once in front of you, then leave the hands together a second
+t 8    lower both hands back to the keyboard and leave them there" \
+"- no Super+F: hands spreading without first coming together, or coming
+  together without spreading, isn't the full-screen motion"
 
 finish
 note "Clips are in ${OUT#"$ROOT"/} (frames.json, golden.log, intent.md each)."

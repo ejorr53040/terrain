@@ -163,6 +163,20 @@ impl Script {
         self
     }
 
+    /// Two hands making `grip`, each moving in a straight line (from, to)
+    /// over `n` frames.
+    pub fn sweep_both(mut self, a: (Vec3, Vec3), b: (Vec3, Vec3), grip: Grip, n: usize) -> Self {
+        for i in 1..=n {
+            let t_ms = self.t();
+            let s = i as f32 / n as f32;
+            self.frames.push(HandFrame {
+                t_ms,
+                hands: vec![hand(a.0.lerp(a.1, s), grip), hand(b.0.lerp(b.1, s), grip)],
+            });
+        }
+        self
+    }
+
     /// `n` frames with no hand in view.
     pub fn gone(mut self, n: usize) -> Self {
         for _ in 0..n {

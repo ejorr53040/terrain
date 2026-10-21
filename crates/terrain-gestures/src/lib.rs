@@ -2,17 +2,18 @@
 //! engine that runs the gesture file's state machines on the hand with
 //! control. Engagement (raising an open hand into the Reach to take
 //! control, lowering it to give control up) and letting go of a lost hand
-//! are built in, not in the gesture file (ADR 0002).
+//! are built in, not in the gesture file (ADR 0002). Spreads need no
+//! control, and run on any two hands (ADR 0008).
 
 mod file;
 
 pub use file::{
-    DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, State, Transition,
+    DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, Spread, State, Transition,
 };
 
 use std::collections::VecDeque;
 
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use serde::Deserialize;
 use terrain_hands::{FORGET_AFTER_MS, HandState};
 
@@ -84,6 +85,8 @@ pub struct Hand {
     pub pose: Pose,
     /// Where the palm is in the camera's view: normalized, x right, y down.
     pub in_view: Vec2,
+    /// Where the palm is: meters, x right, y up, z away from the camera.
+    pub position: Vec3,
 }
 
 /// What the hands are doing, for showing on screen.
@@ -151,11 +154,31 @@ pub struct Engine {
     /// The Pose the hand with control reads, and since when.
     pose: (Pose, u64),
     active: Option<Active>,
+    /// How far along each of the file's Spreads is.
+    spreads: Vec<Arming>,
+}
+
+/// How far along a Spread is.
+#[derive(Clone, Copy, Debug, Default)]
+struct Arming {
+    /// Since when the palms have been together (ms).
+    together_since: Option<u64>,
+    /// When the palms were last together, having been so long enough (ms).
+    armed_at: Option<u64>,
+}
+
+impl Arming {
+    /// Palms together or just parted: a pinch here is the palms meeting,
+    /// not a gesture of the hand with control.
+    fn under_way(&self) -> bool {
+        self.together_since.is_some() || self.armed_at.is_some()
+    }
 }
 
 impl Engine {
     pub fn new(gestures: GestureFile) -> Self {
         Self {
+            spreads: vec![Arming::default(); gestures.spreads.len()],
             gestures,
             control: Control::Free,
             last_seen_ms: 0,
@@ -184,6 +207,60 @@ impl Engine {
 
     /// The actions `hands`, seen at `t_ms`, call for.
     pub fn update(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
+        // After the hand with control, so a gesture it starts this frame
+        // already blocks a Spread.
+        let mut actions = self.one_hand(hands, t_ms);
+        actions.extend(self.spreads(hands, t_ms));
+        actions
+    }
+
+    /// The key chords of the Spreads `hands` complete.
+    fn spreads(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
+        let mut actions = Vec::new();
+        for (g, arming) in self.gestures.spreads.iter().zip(&mut self.spreads) {
+            let Arming {
+                together_since: since,
+                armed_at: armed,
+            } = arming;
+            if armed.is_some_and(|at| t_ms.saturating_sub(at) > g.within_ms) {
+                *armed = None;
+            }
+            let [a, b] = hands else {
+                // A hand flung to the edge of the view drops out for a moment
+                // mid-spread: that keeps it armed, for as long as it lasts.
+                *since = None;
+                continue;
+            };
+            if self.active.is_some() {
+                (*since, *armed) = (None, None);
+                continue;
+            }
+            // A hand opening to spread can read as another Pose for a frame
+            // (a Vee, live): that keeps it armed, as a dropout does.
+            if !g.poses.contains(&a.pose) || !g.poses.contains(&b.pose) {
+                *since = None;
+                continue;
+            }
+            let gap = (a.position - b.position).truncate().length();
+            if gap < g.together {
+                let from = *since.get_or_insert(t_ms);
+                if t_ms.saturating_sub(from) >= g.held_ms {
+                    *armed = Some(t_ms);
+                }
+                continue;
+            }
+            *since = None;
+            if armed.is_some() && gap > g.apart {
+                *armed = None;
+                actions.extend(g.keys.iter().map(|&k| Action::Press(k)));
+                actions.extend(g.keys.iter().rev().map(|&k| Action::Release(k)));
+            }
+        }
+        actions
+    }
+
+    /// The actions of the hand with control.
+    fn one_hand(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
         let id = match self.control {
             Control::Held { id } => id,
             _ => {
@@ -275,7 +352,7 @@ impl Engine {
                 actions.extend(self.enter(&to, t_ms));
             }
         }
-        if self.active.is_none() {
+        if self.active.is_none() && !self.spreads.iter().any(Arming::under_way) {
             let (pose, since) = self.pose;
             let settled = self
                 .gestures

@@ -30,6 +30,10 @@ _Avoid_: Command, motion
 A pinch or fist moved quickly in one direction (left, right, up, down), however long it was held still first, as opposed to the slower move of a Drag. Flicks send herdr's key chords.
 _Avoid_: Swipe
 
+**Spread**:
+Two hands brought together, then spread apart quickly. It needs no Engagement, since two hands meeting in front of the chest don't happen at the keyboard, and so it can only send a key chord, never a click (ADR 0008). Spread toggles full screen.
+_Avoid_: Expand, zoom out
+
 **Engagement**:
 Whether a hand has control. A hand gains it by being raised open into the reach and loses it by being lowered. Engagement is not a gesture and can't be rebound.
 _Avoid_: Control mode, activation

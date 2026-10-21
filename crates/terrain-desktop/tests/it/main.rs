@@ -3,6 +3,7 @@
 
 mod clicks;
 mod engage;
+mod full_screen;
 mod goldens;
 mod herdr;
 mod no_stuck_buttons;
