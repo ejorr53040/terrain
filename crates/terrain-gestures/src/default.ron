@@ -156,7 +156,7 @@
             },
         ),
     ],
-    two_hands: [
+    spreads: [
         (
             // Palms meeting often read as pinching: the thumbs drift onto
             // the index fingers.
@@ -170,7 +170,7 @@
             apart: 0.32,
             within_ms: 450,
             // Omarchy's full screen.
-            enter: [Press(Super), Press(F), Release(F), Release(Super)],
+            keys: [Super, F],
         ),
     ],
 )

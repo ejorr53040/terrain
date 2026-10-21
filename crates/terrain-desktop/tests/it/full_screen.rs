@@ -8,10 +8,10 @@ use terrain_desktop::{Button, Input};
 /// Low in front of the chest, where the recorded take held them: below the
 /// Reach, so neither hand takes control.
 const LOW: Vec3 = Vec3::new(0.0, -0.15, 0.6);
-/// Palms 16 cm apart: together.
+/// Palms 16 cm apart.
 const TOGETHER: Vec3 = Vec3::new(0.08, 0.0, 0.0);
-/// Palms 50 cm apart: spread.
-const SPREAD: Vec3 = Vec3::new(0.25, 0.0, 0.0);
+/// Palms 50 cm apart.
+const APART: Vec3 = Vec3::new(0.25, 0.0, 0.0);
 
 fn full_screen() -> Vec<Input> {
     vec![
@@ -31,12 +31,12 @@ fn two_open_hands_brought_together_then_spread_toggle_full_screen() {
             10,
         )
         .sweep_both(
-            (LOW - TOGETHER, LOW - SPREAD),
-            (LOW + TOGETHER, LOW + SPREAD),
+            (LOW - TOGETHER, LOW - APART),
+            (LOW + TOGETHER, LOW + APART),
             Grip::Open,
             12,
         )
-        .hold_two((LOW - SPREAD, Grip::Open), (LOW + SPREAD, Grip::Open), 10)
+        .hold_two((LOW - APART, Grip::Open), (LOW + APART, Grip::Open), 10)
         .run();
     assert_eq!(buttons(&inputs), full_screen());
 }
@@ -48,12 +48,12 @@ fn hands_lifted_apart_and_stretched_wider_do_nothing() {
     let inputs = Script::default()
         .hold_two((LOW - rest, Grip::Open), (LOW + rest, Grip::Open), 10)
         .sweep_both(
-            (LOW - rest, LOW - SPREAD),
-            (LOW + rest, LOW + SPREAD),
+            (LOW - rest, LOW - APART),
+            (LOW + rest, LOW + APART),
             Grip::Open,
             8,
         )
-        .hold_two((LOW - SPREAD, Grip::Open), (LOW + SPREAD, Grip::Open), 10)
+        .hold_two((LOW - APART, Grip::Open), (LOW + APART, Grip::Open), 10)
         .run();
     assert_eq!(buttons(&inputs), vec![]);
 }
@@ -67,8 +67,8 @@ fn hands_drifting_apart_slowly_after_a_clap_do_nothing() {
             10,
         )
         .sweep_both(
-            (LOW - TOGETHER, LOW - SPREAD),
-            (LOW + TOGETHER, LOW + SPREAD),
+            (LOW - TOGETHER, LOW - APART),
+            (LOW + TOGETHER, LOW + APART),
             Grip::Open,
             45,
         )
@@ -78,7 +78,7 @@ fn hands_drifting_apart_slowly_after_a_clap_do_nothing() {
 
 #[test]
 fn each_spread_toggles_once_however_the_spread_hands_wobble() {
-    let wider = SPREAD + Vec3::new(0.05, 0.0, 0.0);
+    let wider = APART + Vec3::new(0.05, 0.0, 0.0);
     let spread_once = |script: Script| {
         script
             .hold_two(
@@ -87,26 +87,26 @@ fn each_spread_toggles_once_however_the_spread_hands_wobble() {
                 10,
             )
             .sweep_both(
-                (LOW - TOGETHER, LOW - SPREAD),
-                (LOW + TOGETHER, LOW + SPREAD),
+                (LOW - TOGETHER, LOW - APART),
+                (LOW + TOGETHER, LOW + APART),
                 Grip::Open,
                 12,
             )
             .sweep_both(
-                (LOW - SPREAD, LOW - wider),
-                (LOW + SPREAD, LOW + wider),
+                (LOW - APART, LOW - wider),
+                (LOW + APART, LOW + wider),
                 Grip::Open,
                 4,
             )
             .sweep_both(
-                (LOW - wider, LOW - SPREAD),
-                (LOW + wider, LOW + SPREAD),
+                (LOW - wider, LOW - APART),
+                (LOW + wider, LOW + APART),
                 Grip::Open,
                 4,
             )
             .sweep_both(
-                (LOW - SPREAD, LOW - TOGETHER),
-                (LOW + SPREAD, LOW + TOGETHER),
+                (LOW - APART, LOW - TOGETHER),
+                (LOW + APART, LOW + TOGETHER),
                 Grip::Open,
                 15,
             )
@@ -130,7 +130,7 @@ fn a_spread_while_the_other_hand_drags_does_nothing() {
         let dragged = ahead.lerp(ahead - Vec3::new(0.05, 0.0, 0.0), s);
         script = script.hold_two(
             (dragged, Grip::Pinch),
-            (beside.lerp(ahead + SPREAD * 2.0, s), Grip::Open),
+            (beside.lerp(ahead + APART * 2.0, s), Grip::Open),
             1,
         );
     }
@@ -160,7 +160,27 @@ fn a_hand_lost_for_a_moment_at_the_edge_mid_spread_still_toggles() {
         script = script.hold(LOW + TOGETHER * 2.0, Grip::Open, 1);
     }
     let inputs = script
-        .hold_two((LOW - SPREAD, Grip::Open), (LOW + SPREAD, Grip::Open), 10)
+        .hold_two((LOW - APART, Grip::Open), (LOW + APART, Grip::Open), 10)
         .run();
     assert_eq!(buttons(&inputs), full_screen());
+}
+
+#[test]
+fn a_spread_landing_as_the_controlling_hands_pinch_settles_does_nothing() {
+    let ahead = Vec3::new(0.0, 0.0, 0.6);
+    let beside = ahead + Vec3::new(0.16, 0.0, 0.0);
+    let flung = ahead + Vec3::new(0.6, 0.0, 0.0);
+    // The first hand takes control; the pair has long been together.
+    let mut script = Script::default().hold_two((ahead, Grip::Open), (beside, Grip::Open), 20);
+    // The controlling hand pinches; on the frame its pinch settles into a
+    // gesture (120 ms), the other hand is flung away.
+    for frame in 0..8 {
+        let other = if frame < 4 { beside } else { flung };
+        script = script.hold_two((ahead, Grip::Pinch), (other, Grip::Open), 1);
+    }
+    let inputs = script.run();
+    assert!(
+        !buttons(&inputs).contains(&Input::Press(Button::F)),
+        "{inputs:?}"
+    );
 }

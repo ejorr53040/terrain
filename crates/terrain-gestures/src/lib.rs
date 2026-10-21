@@ -2,13 +2,13 @@
 //! engine that runs the gesture file's state machines on the hand with
 //! control. Engagement (raising an open hand into the Reach to take
 //! control, lowering it to give control up) and letting go of a lost hand
-//! are built in, not in the gesture file (ADR 0002). Two-hand gestures (a
-//! Spread) need no control, and run on any two hands.
+//! are built in, not in the gesture file (ADR 0002). Spreads need no
+//! control, and run on any two hands (ADR 0008).
 
 mod file;
 
 pub use file::{
-    DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, State, Transition, TwoHands,
+    DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, Spread, State, Transition,
 };
 
 use std::collections::VecDeque;
@@ -154,15 +154,23 @@ pub struct Engine {
     /// The Pose the hand with control reads, and since when.
     pose: (Pose, u64),
     active: Option<Active>,
-    /// Per two-hand gesture: since when the palms have been together, and
-    /// when they were last together having been so long enough (ms).
-    two_hands: Vec<(Option<u64>, Option<u64>)>,
+    /// How far along each of the file's Spreads is.
+    spreads: Vec<Arming>,
+}
+
+/// How far along a Spread is.
+#[derive(Clone, Copy, Debug, Default)]
+struct Arming {
+    /// Since when the palms have been together (ms).
+    together_since: Option<u64>,
+    /// When the palms were last together, having been so long enough (ms).
+    armed_at: Option<u64>,
 }
 
 impl Engine {
     pub fn new(gestures: GestureFile) -> Self {
         Self {
-            two_hands: vec![(None, None); gestures.two_hands.len()],
+            spreads: vec![Arming::default(); gestures.spreads.len()],
             gestures,
             control: Control::Free,
             last_seen_ms: 0,
@@ -191,15 +199,21 @@ impl Engine {
 
     /// The actions `hands`, seen at `t_ms`, call for.
     pub fn update(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
-        let mut actions = self.two_hands(hands, t_ms);
-        actions.extend(self.one_hand(hands, t_ms));
+        // After the hand with control, so a gesture it starts this frame
+        // already blocks a Spread.
+        let mut actions = self.one_hand(hands, t_ms);
+        actions.extend(self.spreads(hands, t_ms));
         actions
     }
 
-    /// The actions of a two-hand gesture `hands` complete.
-    fn two_hands(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
+    /// The key chords of the Spreads `hands` complete.
+    fn spreads(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
         let mut actions = Vec::new();
-        for (g, (since, armed)) in self.gestures.two_hands.iter().zip(&mut self.two_hands) {
+        for (g, arming) in self.gestures.spreads.iter().zip(&mut self.spreads) {
+            let Arming {
+                together_since: since,
+                armed_at: armed,
+            } = arming;
             if armed.is_some_and(|at| t_ms.saturating_sub(at) > g.within_ms) {
                 *armed = None;
             }
@@ -224,7 +238,8 @@ impl Engine {
             *since = None;
             if armed.is_some() && gap > g.apart {
                 *armed = None;
-                actions.extend(g.enter.iter().copied());
+                actions.extend(g.keys.iter().map(|&k| Action::Press(k)));
+                actions.extend(g.keys.iter().rev().map(|&k| Action::Release(k)));
             }
         }
         actions

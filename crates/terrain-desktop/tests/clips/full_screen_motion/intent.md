@@ -1,19 +1,18 @@
-# Your full-screen motion (to be mapped)
+# Spread (full screen)
 
 ## Performed
 
 Before recording: focus a scratch window that isn't full screen.
-Do the motion you want to toggle full screen, the way you'd naturally do it.
-t 0–2  hands on the keyboard
-t 2–3  raise your right hand open, palm to the camera, to chest height in
-       front of the screen; hold it still for a full second
-t 3–4  your full-screen motion, then rest the hand open and still
-t 5–6  the same motion again, then rest open
-t 7–8  the same motion a third time, then rest open
-t 9    lower the hand back to the keyboard and leave it there to the end
+t 0–0.5  hands on the keyboard
+t 0.5–1.5 lift both hands open in front of the chest, about a shoulder
+       width apart; don't raise either into the reach
+t 2    bring the palms together, then spread them apart quickly
+t 4    together again, then spread
+t 6–7  together again, then spread
+t 8    lower both hands back to the keyboard and leave them there
 
 ## Expected actions
 
-- three full-screen toggles (Super+F), one per spread; the hands stay low,
-  so neither takes control (two-hand gestures don't need it)
-- the third spread loses the flung hand for a moment and still toggles
+- three full-screen toggles (Super+F), one per Spread; the hands stay low,
+  so neither takes control (a Spread doesn't need it)
+- no clicks

@@ -459,17 +459,18 @@ t 8.5–9.5 pinch, drag slowly down, open" \
 - four drags (Press Left, the pointer moves, Release Left)
 - no Alt chords: slow moves never flick"
 
-clip full_screen_motion "Your full-screen motion (to be mapped)" \
+clip full_screen_motion "Spread (full screen)" \
 "Before recording: focus a scratch window that isn't full screen.
-Do the motion you want to toggle full screen, the way you'd naturally do it.
-$RAISE
-t 3–4  your full-screen motion, then rest the hand open and still
-t 5–6  the same motion again, then rest open
-t 7–8  the same motion a third time, then rest open
-t 9    $LOWER" \
-"- the hand takes control
-- three full-screen toggles (Super+F) once the motion is mapped;
-  today's control does whatever it does, which shows what it collides with"
+t 0–0.5  hands on the keyboard
+t 0.5–1.5 lift both hands open in front of the chest, about a shoulder
+       width apart; don't raise either into the reach
+t 2    bring the palms together, then spread them apart quickly
+t 4    together again, then spread
+t 6–7  together again, then spread
+t 8    lower both hands back to the keyboard and leave them there" \
+"- three full-screen toggles (Super+F), one per Spread; the hands stay low,
+  so neither takes control (a Spread doesn't need it)
+- no clicks"
 
 clip not_full_screen "Both hands, not the full-screen motion" \
 "Before recording: focus a scratch window that isn't full screen.

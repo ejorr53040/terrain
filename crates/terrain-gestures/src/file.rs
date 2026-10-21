@@ -17,13 +17,13 @@ pub const DEFAULT: &str = include_str!("default.ron");
 pub struct GestureFile {
     pub gestures: Vec<Gesture>,
     #[serde(default)]
-    pub two_hands: Vec<TwoHands>,
+    pub spreads: Vec<Spread>,
 }
 
-/// A gesture of two hands at once: brought together, then spread apart
-/// quickly. Neither hand needs control, but neither can be in a gesture.
+/// A Spread: two hands brought together, then spread apart quickly.
+/// Neither hand needs control, but neither can be in a gesture (ADR 0008).
 #[derive(Clone, Debug, Deserialize)]
-pub struct TwoHands {
+pub struct Spread {
     /// The Poses each hand may make throughout.
     pub poses: Vec<Pose>,
     /// The palms closer than this (meters)...
@@ -34,7 +34,24 @@ pub struct TwoHands {
     pub apart: f32,
     /// ...within this long (ms) of last being together.
     pub within_ms: u64,
-    pub enter: Vec<Action>,
+    /// The key chord it sends: pressed in order, released in reverse.
+    #[serde(deserialize_with = "keys_only")]
+    pub keys: Vec<Button>,
+}
+
+/// A Spread's chord can't hold a mouse button: without Engagement, hands at
+/// the keyboard must never be able to click (ADR 0008).
+fn keys_only<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Button>, D::Error> {
+    let keys = Vec::<Button>::deserialize(d)?;
+    match keys
+        .iter()
+        .find(|b| matches!(b, Button::Left | Button::Right))
+    {
+        Some(b) => Err(serde::de::Error::custom(format!(
+            "a Spread sends keys only, not the mouse button {b:?}"
+        ))),
+        None => Ok(keys),
+    }
 }
 
 impl GestureFile {
@@ -139,4 +156,23 @@ pub enum Direction {
     Right,
     Up,
     Down,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn with_keys(keys: &str) -> Result<GestureFile, ron::error::SpannedError> {
+        GestureFile::parse(&format!(
+            "(gestures: [], spreads: [(poses: [Open], together: 0.2, held_ms: 150, \
+             apart: 0.32, within_ms: 450, keys: {keys})])"
+        ))
+    }
+
+    #[test]
+    fn a_spread_can_send_keys_but_never_click() {
+        assert!(with_keys("[Super, F]").is_ok());
+        let err = with_keys("[Left]").unwrap_err().to_string();
+        assert!(err.contains("mouse button Left"), "{err}");
+    }
 }
