@@ -167,6 +167,14 @@ struct Arming {
     armed_at: Option<u64>,
 }
 
+impl Arming {
+    /// Palms together or just parted: a pinch here is the palms meeting,
+    /// not a gesture of the hand with control.
+    fn under_way(&self) -> bool {
+        self.together_since.is_some() || self.armed_at.is_some()
+    }
+}
+
 impl Engine {
     pub fn new(gestures: GestureFile) -> Self {
         Self {
@@ -338,7 +346,7 @@ impl Engine {
                 actions.extend(self.enter(&to, t_ms));
             }
         }
-        if self.active.is_none() {
+        if self.active.is_none() && !self.spreads.iter().any(Arming::under_way) {
             let (pose, since) = self.pose;
             let settled = self
                 .gestures

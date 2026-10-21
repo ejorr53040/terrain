@@ -12,6 +12,7 @@ A Spread (two hands brought together, then spread apart quickly) toggles full sc
 
 - A Spread is only considered while neither hand is in a one-hand gesture. It is checked after the hand with control has been stepped, so a gesture that hand starts on the same frame already blocks it.
 - Hands meeting often read as pinching, so both Open and Pinch count.
+- While a Spread's palms are together, or parted within the last 450 ms, the hand with control can't start a gesture: its pinch is the palms meeting. Found live (2026-10-21). At chest height one hand took control, its pinch as the palms met started a pinch gesture, and that blocked the Spread and clicked or dragged instead. The cost: a pinch made with the other hand within 20 cm of it does nothing.
 - A hand that drops out of tracking at the edge of the view mid-spread keeps the Spread armed, for at most 450 ms.
 - Thresholds come from one recorded take (`full_screen_motion`), so the margins are thin: that take's slowest spread took 400 ms, while a 1.5 s drift apart takes 530 ms.
 - A clap held for 150 ms and then dropped fast to a wide rest would toggle.

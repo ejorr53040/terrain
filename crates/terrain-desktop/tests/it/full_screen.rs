@@ -119,11 +119,11 @@ fn each_spread_toggles_once_however_the_spread_hands_wobble() {
 fn a_spread_while_the_other_hand_drags_does_nothing() {
     let ahead = Vec3::new(0.0, 0.0, 0.6);
     let beside = ahead + Vec3::new(0.16, 0.0, 0.0);
-    let mut script = Script::default().hold(ahead, Grip::Open, 20).hold_two(
-        (ahead, Grip::Pinch),
-        (beside, Grip::Open),
-        15,
-    );
+    // The drag is under way before the other hand comes alongside.
+    let mut script = Script::default()
+        .hold(ahead, Grip::Open, 20)
+        .hold(ahead, Grip::Pinch, 10)
+        .hold_two((ahead, Grip::Pinch), (beside, Grip::Open), 15);
     // The pinch drags on while the open hand flies off to the side.
     for i in 1..=12 {
         let s = i as f32 / 12.0;
@@ -166,21 +166,39 @@ fn a_hand_lost_for_a_moment_at_the_edge_mid_spread_still_toggles() {
 }
 
 #[test]
-fn a_spread_landing_as_the_controlling_hands_pinch_settles_does_nothing() {
-    let ahead = Vec3::new(0.0, 0.0, 0.6);
-    let beside = ahead + Vec3::new(0.16, 0.0, 0.0);
-    let flung = ahead + Vec3::new(0.6, 0.0, 0.0);
-    // The first hand takes control; the pair has long been together.
-    let mut script = Script::default().hold_two((ahead, Grip::Open), (beside, Grip::Open), 20);
-    // The controlling hand pinches; on the frame its pinch settles into a
-    // gesture (120 ms), the other hand is flung away.
-    for frame in 0..8 {
-        let other = if frame < 4 { beside } else { flung };
-        script = script.hold_two((ahead, Grip::Pinch), (other, Grip::Open), 1);
-    }
-    let inputs = script.run();
-    assert!(
-        !buttons(&inputs).contains(&Input::Press(Button::F)),
-        "{inputs:?}"
-    );
+fn a_spread_at_chest_height_with_a_hand_in_control_toggles_without_clicking() {
+    // Raised into the Reach, the first hand takes control; meeting palms
+    // read as pinching, as they did live.
+    let chest = Vec3::new(0.0, 0.0, 0.6);
+    let rest = Vec3::new(0.135, 0.0, 0.0);
+    let mid = Vec3::new(0.145, 0.0, 0.0);
+    let inputs = Script::default()
+        .hold_two((chest - rest, Grip::Open), (chest + rest, Grip::Open), 20)
+        .sweep_both(
+            (chest - rest, chest - TOGETHER),
+            (chest + rest, chest + TOGETHER),
+            Grip::Open,
+            8,
+        )
+        .hold_two(
+            (chest - TOGETHER, Grip::Pinch),
+            (chest + TOGETHER, Grip::Pinch),
+            10,
+        )
+        // Still pinching as they part, as live, until about 0.29 m apart.
+        .sweep_both(
+            (chest - TOGETHER, chest - mid),
+            (chest + TOGETHER, chest + mid),
+            Grip::Pinch,
+            5,
+        )
+        .sweep_both(
+            (chest - mid, chest - APART),
+            (chest + mid, chest + APART),
+            Grip::Open,
+            5,
+        )
+        .hold_two((chest - APART, Grip::Open), (chest + APART, Grip::Open), 10)
+        .run();
+    assert_eq!(buttons(&inputs), full_screen());
 }
