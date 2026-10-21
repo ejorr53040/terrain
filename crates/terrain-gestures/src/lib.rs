@@ -2,17 +2,18 @@
 //! engine that runs the gesture file's state machines on the hand with
 //! control. Engagement (raising an open hand into the Reach to take
 //! control, lowering it to give control up) and letting go of a lost hand
-//! are built in, not in the gesture file (ADR 0002).
+//! are built in, not in the gesture file (ADR 0002). Two-hand gestures (a
+//! Spread) need no control, and run on any two hands.
 
 mod file;
 
 pub use file::{
-    DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, State, Transition,
+    DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, State, Transition, TwoHands,
 };
 
 use std::collections::VecDeque;
 
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use serde::Deserialize;
 use terrain_hands::{FORGET_AFTER_MS, HandState};
 
@@ -84,6 +85,8 @@ pub struct Hand {
     pub pose: Pose,
     /// Where the palm is in the camera's view: normalized, x right, y down.
     pub in_view: Vec2,
+    /// Where the palm is: meters, x right, y up, z away from the camera.
+    pub position: Vec3,
 }
 
 /// What the hands are doing, for showing on screen.
@@ -151,11 +154,15 @@ pub struct Engine {
     /// The Pose the hand with control reads, and since when.
     pose: (Pose, u64),
     active: Option<Active>,
+    /// Per two-hand gesture: since when the palms have been together, and
+    /// when they were last together having been so long enough (ms).
+    two_hands: Vec<(Option<u64>, Option<u64>)>,
 }
 
 impl Engine {
     pub fn new(gestures: GestureFile) -> Self {
         Self {
+            two_hands: vec![(None, None); gestures.two_hands.len()],
             gestures,
             control: Control::Free,
             last_seen_ms: 0,
@@ -184,6 +191,47 @@ impl Engine {
 
     /// The actions `hands`, seen at `t_ms`, call for.
     pub fn update(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
+        let mut actions = self.two_hands(hands, t_ms);
+        actions.extend(self.one_hand(hands, t_ms));
+        actions
+    }
+
+    /// The actions of a two-hand gesture `hands` complete.
+    fn two_hands(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
+        let mut actions = Vec::new();
+        for (g, (since, armed)) in self.gestures.two_hands.iter().zip(&mut self.two_hands) {
+            if armed.is_some_and(|at| t_ms.saturating_sub(at) > g.within_ms) {
+                *armed = None;
+            }
+            let [a, b] = hands else {
+                // A hand flung to the edge of the view drops out for a moment
+                // mid-spread: that keeps it armed, for as long as it lasts.
+                *since = None;
+                continue;
+            };
+            if !g.poses.contains(&a.pose) || !g.poses.contains(&b.pose) || self.active.is_some() {
+                (*since, *armed) = (None, None);
+                continue;
+            }
+            let gap = (a.position - b.position).truncate().length();
+            if gap < g.together {
+                let from = *since.get_or_insert(t_ms);
+                if t_ms.saturating_sub(from) >= g.held_ms {
+                    *armed = Some(t_ms);
+                }
+                continue;
+            }
+            *since = None;
+            if armed.is_some() && gap > g.apart {
+                *armed = None;
+                actions.extend(g.enter.iter().copied());
+            }
+        }
+        actions
+    }
+
+    /// The actions of the hand with control.
+    fn one_hand(&mut self, hands: &[Hand], t_ms: u64) -> Vec<Action> {
         let id = match self.control {
             Control::Held { id } => id,
             _ => {

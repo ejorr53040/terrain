@@ -16,6 +16,25 @@ pub const DEFAULT: &str = include_str!("default.ron");
 #[derive(Clone, Debug, Deserialize)]
 pub struct GestureFile {
     pub gestures: Vec<Gesture>,
+    #[serde(default)]
+    pub two_hands: Vec<TwoHands>,
+}
+
+/// A gesture of two hands at once: brought together, then spread apart
+/// quickly. Neither hand needs control, but neither can be in a gesture.
+#[derive(Clone, Debug, Deserialize)]
+pub struct TwoHands {
+    /// The Poses each hand may make throughout.
+    pub poses: Vec<Pose>,
+    /// The palms closer than this (meters)...
+    pub together: f32,
+    /// ...for at least this long (ms)...
+    pub held_ms: u64,
+    /// ...then further apart than this (meters)...
+    pub apart: f32,
+    /// ...within this long (ms) of last being together.
+    pub within_ms: u64,
+    pub enter: Vec<Action>,
 }
 
 impl GestureFile {

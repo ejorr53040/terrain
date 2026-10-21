@@ -197,7 +197,7 @@ OUT=$ROOT/crates/terrain-desktop/tests/clips
 CAMERA=/dev/video0
 SECONDS_PER_CLIP=10
 
-TOTAL_STAGES=15
+TOTAL_STAGES=17
 
 # camera_free waits until no other program holds the camera.
 camera_free() {
@@ -458,6 +458,29 @@ t 8.5–9.5 pinch, drag slowly down, open" \
 "- the hand takes control
 - four drags (Press Left, the pointer moves, Release Left)
 - no Alt chords: slow moves never flick"
+
+clip full_screen_motion "Your full-screen motion (to be mapped)" \
+"Before recording: focus a scratch window that isn't full screen.
+Do the motion you want to toggle full screen, the way you'd naturally do it.
+$RAISE
+t 3–4  your full-screen motion, then rest the hand open and still
+t 5–6  the same motion again, then rest open
+t 7–8  the same motion a third time, then rest open
+t 9    $LOWER" \
+"- the hand takes control
+- three full-screen toggles (Super+F) once the motion is mapped;
+  today's control does whatever it does, which shows what it collides with"
+
+clip not_full_screen "Both hands, not the full-screen motion" \
+"Before recording: focus a scratch window that isn't full screen.
+t 0–2  hands on the keyboard
+t 2–3  lift both hands off the keyboard and stretch them wide apart, as
+       if stretching your arms; hold a second
+t 4–5  drop them back to the keyboard
+t 6    clap once in front of you, then leave the hands together a second
+t 8    lower both hands back to the keyboard and leave them there" \
+"- no Super+F: hands spreading without first coming together, or coming
+  together without spreading, isn't the full-screen motion"
 
 finish
 note "Clips are in ${OUT#"$ROOT"/} (frames.json, golden.log, intent.md each)."
