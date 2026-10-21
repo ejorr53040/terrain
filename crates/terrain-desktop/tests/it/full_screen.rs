@@ -202,3 +202,25 @@ fn a_spread_at_chest_height_with_a_hand_in_control_toggles_without_clicking() {
         .run();
     assert_eq!(buttons(&inputs), full_screen());
 }
+
+#[test]
+fn a_hand_reading_as_a_vee_for_a_frame_as_it_opens_still_toggles() {
+    // Live, a hand opening to spread passed through a Vee for one frame.
+    let parting = TOGETHER * 1.2;
+    let inputs = Script::default()
+        .hold_two(
+            (LOW - TOGETHER, Grip::Open),
+            (LOW + TOGETHER, Grip::Open),
+            10,
+        )
+        .hold_two((LOW - parting, Grip::Vee), (LOW + parting, Grip::Open), 1)
+        .sweep_both(
+            (LOW - parting, LOW - APART),
+            (LOW + parting, LOW + APART),
+            Grip::Open,
+            6,
+        )
+        .hold_two((LOW - APART, Grip::Open), (LOW + APART, Grip::Open), 10)
+        .run();
+    assert_eq!(buttons(&inputs), full_screen());
+}

@@ -195,9 +195,9 @@ REPLAY_DESKTOP=$TARGET/release/examples/replay_desktop
 RAW=$HOME/.cache/terrain/clips/gestures
 OUT=$ROOT/crates/terrain-desktop/tests/clips
 CAMERA=/dev/video0
-SECONDS_PER_CLIP=10
+SECONDS_PER_CLIP=${SECONDS_PER_CLIP:-10}
 
-TOTAL_STAGES=17
+TOTAL_STAGES=18
 
 # camera_free waits until no other program holds the camera.
 camera_free() {
@@ -471,6 +471,20 @@ t 8    lower both hands back to the keyboard and leave them there" \
 "- three full-screen toggles (Super+F), one per Spread; the hands stay low,
   so neither takes control (a Spread doesn't need it)
 - no clicks"
+
+clip spread_in_control "Spreads at chest height, a hand in control" \
+"Record with SECONDS_PER_CLIP=15.
+Before recording: focus a scratch window that isn't full screen.
+t 0–2  hands on the keyboard
+t 2–3  raise your right hand open, palm to the camera, to chest height in
+       front of the screen; hold it still for a full second (it takes control)
+t 4    bring the left hand up beside it, then Spread: palms together,
+       then apart quickly, the way you do it live
+t 6, 8, 10, 12  four more Spreads, resting open and still between them
+t 13   lower both hands back to the keyboard and leave them there" \
+"- the hand takes control
+- five full-screen toggles (Super+F), one per Spread
+- no clicks, drags or window drags"
 
 clip not_full_screen "Both hands, not the full-screen motion" \
 "Before recording: focus a scratch window that isn't full screen.

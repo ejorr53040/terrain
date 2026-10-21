@@ -231,8 +231,14 @@ impl Engine {
                 *since = None;
                 continue;
             };
-            if !g.poses.contains(&a.pose) || !g.poses.contains(&b.pose) || self.active.is_some() {
+            if self.active.is_some() {
                 (*since, *armed) = (None, None);
+                continue;
+            }
+            // A hand opening to spread can read as another Pose for a frame
+            // (a Vee, live): that keeps it armed, as a dropout does.
+            if !g.poses.contains(&a.pose) || !g.poses.contains(&b.pose) {
+                *since = None;
                 continue;
             }
             let gap = (a.position - b.position).truncate().length();
