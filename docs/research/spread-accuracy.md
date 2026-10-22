@@ -35,14 +35,14 @@ Inferred, not verified: motion blur during the fling loses the landmarks, then t
 
 ## Baseline (#77, 2026-10-22)
 
-From `tools/clip_report.py`, before any tracking fix. Later tickets compare against this. Clips without two hands show no dropouts and are left out.
+From `tools/clip_report.py`, before any tracking fix. Later tickets compare against this. Clips with no dropouts are left out.
 
 | Clip | 2 hands | 1 hand | none | Dropouts (ms) |
 |---|---|---|---|---|
 | spread_short | 374 | 41 | 185 | 633, 233, 333 |
 | full_screen_motion | 217 | 11 | 72 | 333 |
 | spread_in_control | 290 | 44 | 116 | 100, 66, 134 |
-| not_full_screen | 13 | 20 | 267 | 3566 (hands leave and come back by design, not a dropout) |
+| not_full_screen | 13 | 20 | 267 | 3566 (expected: the hands leave and come back by design) |
 
 ## What to try, best first
 

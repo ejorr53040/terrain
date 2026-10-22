@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""How well the hands were tracked in recorded clips: frames with 2, 1 and
+"""Dev-only: how well the hands were tracked in recorded clips: frames with 2, 1 and
 0 hands, and each dropout (a hand lost between two frames with both).
+Never shipped or run by the app.
 
     tools/clip_report.py [CLIP...]   # default: every clip
     tools/clip_report.py --self-check
@@ -10,7 +11,8 @@ import json
 import sys
 from pathlib import Path
 
-CLIPS = Path(__file__).resolve().parent.parent / "crates/terrain-desktop/tests/clips"
+ROOT = Path(__file__).resolve().parents[1]
+CLIPS = ROOT / "crates" / "terrain-desktop" / "tests" / "clips"
 
 
 def tracking(frames):
