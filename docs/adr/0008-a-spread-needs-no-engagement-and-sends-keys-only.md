@@ -18,6 +18,7 @@ A Spread (two hands brought together, then spread apart quickly) toggles full sc
 - A clap held for 150 ms and then dropped fast to a wide rest would toggle.
 - A slow drift apart is told from a Spread by time with both hands seen, not wall time: a hand flung out of view drops out for 300-370 ms, longer than a drift takes, but a dropout stops the clock. Needed (2026-10-21) once `apart` dropped to 26 cm.
 - A Spread stays armed after it fires, until 450 ms after the palms were last together, so a pinch lingering from the palms meeting can't start a click.
+- Hands in a Spread's Poses closer than `near` (35 cm) count as a Spread getting under way, so the hand with control can't start a gesture. Found live (2026-10-22, #85): fingertips meeting read as pinching from about 30 cm apart, before the palms were within `together`; the pinch clicked, held as a drag, and blocked the Spread. The cost grows: a pinch made with the other hand within 35 cm of it does nothing (was 20 cm). Zoom starts with two pinches well apart, so it's unaffected.
 
 ## Amendment (2026-10-21): Bump
 

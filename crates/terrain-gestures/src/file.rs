@@ -28,6 +28,10 @@ pub struct Spread {
     pub poses: Vec<Pose>,
     /// The palms closer than this (meters)...
     pub together: f32,
+    /// Palms closer than this (meters) are a Spread getting under way: the
+    /// hand with control can't start a gesture, since hands read as
+    /// pinching as they come together.
+    pub near: f32,
     /// ...for at least this long (ms)...
     pub held_ms: u64,
     /// ...then further apart than this (meters)...
@@ -168,7 +172,7 @@ mod tests {
     fn with_keys(keys: &str) -> Result<GestureFile, ron::error::SpannedError> {
         GestureFile::parse(&format!(
             "(gestures: [], spreads: [(poses: [Open], together: 0.2, held_ms: 150, \
-             apart: 0.32, within_ms: 450, parting_ms: 250, keys: {keys})])"
+             near: 0.35, apart: 0.32, within_ms: 450, parting_ms: 250, keys: {keys})])"
         ))
     }
 

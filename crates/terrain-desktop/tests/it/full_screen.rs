@@ -204,6 +204,44 @@ fn a_spread_at_chest_height_with_a_hand_in_control_toggles_without_clicking() {
 }
 
 #[test]
+fn hands_already_pinching_as_they_approach_toggle_without_clicking() {
+    // Live, both hands read as pinching from about 30 cm apart, before the
+    // palms were together: the hand with control's pinch clicked, held as a
+    // drag, and the Spread missed.
+    let chest = Vec3::new(0.0, 0.0, 0.6);
+    let wide = Vec3::new(0.2, 0.0, 0.0);
+    let approach = Vec3::new(0.15, 0.0, 0.0);
+    let inputs = Script::default()
+        .hold_two((chest - wide, Grip::Open), (chest + wide, Grip::Open), 20)
+        .sweep_both(
+            (chest - wide, chest - approach),
+            (chest + wide, chest + approach),
+            Grip::Open,
+            4,
+        )
+        .sweep_both(
+            (chest - approach, chest - TOGETHER),
+            (chest + approach, chest + TOGETHER),
+            Grip::Pinch,
+            8,
+        )
+        .hold_two(
+            (chest - TOGETHER, Grip::Pinch),
+            (chest + TOGETHER, Grip::Pinch),
+            8,
+        )
+        .sweep_both(
+            (chest - TOGETHER, chest - APART),
+            (chest + TOGETHER, chest + APART),
+            Grip::Open,
+            5,
+        )
+        .hold_two((chest - APART, Grip::Open), (chest + APART, Grip::Open), 10)
+        .run();
+    assert_eq!(buttons(&inputs), full_screen());
+}
+
+#[test]
 fn a_hand_reading_as_a_vee_for_a_frame_as_it_opens_still_toggles() {
     // Live, a hand opening to spread passed through a Vee for one frame.
     let parting = TOGETHER * 1.2;

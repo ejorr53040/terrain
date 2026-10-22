@@ -163,6 +163,8 @@ pub struct Engine {
 struct Arming {
     /// Since when the palms have been together (ms).
     together_since: Option<u64>,
+    /// Whether the palms are near enough to be coming together.
+    near: bool,
     /// When the palms were last together, having been so long enough (ms).
     armed_at: Option<u64>,
     /// Whether it fired since it was armed: it stays armed after firing, so
@@ -179,7 +181,7 @@ impl Arming {
     /// Palms together or just parted: a pinch here is the palms meeting,
     /// not a gesture of the hand with control.
     fn under_way(&self) -> bool {
-        self.together_since.is_some() || self.armed_at.is_some()
+        self.near || self.together_since.is_some() || self.armed_at.is_some()
     }
 }
 
@@ -228,11 +230,13 @@ impl Engine {
         for (g, arming) in self.gestures.spreads.iter().zip(&mut self.spreads) {
             let Arming {
                 together_since: since,
+                near,
                 armed_at: armed,
                 fired,
                 seen_at,
                 parted_ms,
             } = arming;
+            *near = false;
             if armed.is_some_and(|at| t_ms.saturating_sub(at) > g.within_ms) {
                 *armed = None;
             }
@@ -253,6 +257,7 @@ impl Engine {
                 continue;
             }
             let gap = (a.position - b.position).truncate().length();
+            *near = gap < g.near;
             *parted_ms += seen_at.map_or(0, |at| t_ms.saturating_sub(at));
             *seen_at = Some(t_ms);
             if gap < g.together {
