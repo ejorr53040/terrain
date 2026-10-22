@@ -140,3 +140,14 @@ fn one_hand_followed_through_a_pinch_is_never_found_twice() {
         assert!(tracked.len() <= 1, "frame {i}: {} hands", tracked.len());
     }
 }
+
+#[test]
+fn a_hand_lost_for_a_frame_is_found_again_on_the_next() {
+    let both = Fixture::load("left_hands.jpg");
+    let one = both.blanked_from(both.width / 2);
+    let mut tracker = HandTracker::new(PALM_MODEL, LANDMARK_MODEL).unwrap();
+    assert_eq!(tracker.track(both.image()).unwrap().len(), 2);
+    assert_eq!(tracker.track(one.image()).unwrap().len(), 1, "one hand blanked out");
+    let back = tracker.track(both.image()).unwrap();
+    assert_eq!(back.len(), 2, "the lost hand, back the next frame");
+}

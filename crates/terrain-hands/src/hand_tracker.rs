@@ -6,6 +6,8 @@ use std::path::Path;
 
 use glam::Vec2;
 
+use crate::capture::FPS;
+use crate::state::FORGET_AFTER_MS;
 use crate::{Hand, HandRegion, Handedness, LandmarkModel, PalmDetector, RgbaImage, landmark};
 
 /// Hands tracked at once.
@@ -14,6 +16,10 @@ const MAX_HANDS: usize = 2;
 /// the palm detector costs more than following a hand, and a second hand
 /// can wait a tenth of a second to be found.
 const SEARCH_EVERY: u32 = 3;
+/// ...but for this many frames after a followed hand is lost, look on
+/// every frame: a hand blurred out mid-gesture comes back fastest that way.
+/// As long as a hand can be gone before it's let go (`FORGET_AFTER_MS`).
+const REFIND_FRAMES: u32 = (FORGET_AFTER_MS * FPS as u64 / 1000) as u32;
 /// A new palm overlapping a tracked hand's region more than this (IoU), or
 /// centred inside it, is that same hand. Centred-inside is needed because a
 /// palm box is much smaller than a followed hand's region, so a palm lying
@@ -48,6 +54,8 @@ pub struct HandTracker {
     regions: Vec<(HandRegion, LabelVote)>,
     /// Images since the palm detector last ran.
     since_search: u32,
+    /// Images left in which to look for a lost hand on every image.
+    refinding: u32,
 }
 
 impl HandTracker {
@@ -60,16 +68,22 @@ impl HandTracker {
             landmarks: LandmarkModel::new(landmark_model)?,
             regions: Vec::new(),
             since_search: 0,
+            refinding: 0,
         })
     }
 
     /// The hands in `image`, the next image in the stream.
     pub fn track(&mut self, image: RgbaImage) -> ort::Result<Vec<TrackedHand>> {
         let mut regions = std::mem::take(&mut self.regions);
+        // Hands followed from the last image, not palms found in this one:
+        // a false palm the landmark model rejects is no hand lost.
+        let followed = regions.len();
         // Look for new hands while there's room for them: on every image
         // while none are followed, now and then while one is.
         self.since_search += 1;
-        if regions.is_empty() || regions.len() < MAX_HANDS && self.since_search >= SEARCH_EVERY {
+        self.refinding = self.refinding.saturating_sub(1);
+        let due = self.since_search >= SEARCH_EVERY || self.refinding > 0;
+        if regions.is_empty() || regions.len() < MAX_HANDS && due {
             self.since_search = 0;
             for palm in self.palms.detect(image)? {
                 if regions.len() < MAX_HANDS
@@ -99,6 +113,9 @@ impl HandTracker {
             hand.handedness = vote.label();
             self.regions.push((next, vote));
             tracked.push(TrackedHand { hand, region });
+        }
+        if tracked.len() < followed {
+            self.refinding = REFIND_FRAMES;
         }
         Ok(tracked)
     }
