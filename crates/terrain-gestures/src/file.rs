@@ -28,10 +28,6 @@ pub struct Spread {
     pub poses: Vec<Pose>,
     /// The palms closer than this (meters)...
     pub together: f32,
-    /// Palms closer than this (meters) are a Spread getting under way: the
-    /// hand with control can't start a gesture, since hands read as
-    /// pinching as they come together.
-    pub near: f32,
     /// ...for at least this long (ms)...
     pub held_ms: u64,
     /// ...then further apart than this (meters)...
@@ -41,6 +37,10 @@ pub struct Spread {
     /// ...and within this long of it with both hands seen: a slow drift
     /// apart isn't a Spread, but a hand flung out of view for a moment is.
     pub parting_ms: u64,
+    /// Both hands in `poses` with palms closer than this (meters) are a
+    /// Spread getting under way: the hand with control can't start any
+    /// gesture, since hands read as pinching as they come together.
+    pub near: f32,
     /// The key chord it sends: pressed in order, released in reverse.
     #[serde(deserialize_with = "keys_only")]
     pub keys: Vec<Button>,
