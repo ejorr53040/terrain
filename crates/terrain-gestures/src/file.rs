@@ -32,8 +32,11 @@ pub struct Spread {
     pub held_ms: u64,
     /// ...then further apart than this (meters)...
     pub apart: f32,
-    /// ...within this long (ms) of last being together.
+    /// ...within this long (ms) of last being together...
     pub within_ms: u64,
+    /// ...and within this long of it with both hands seen: a slow drift
+    /// apart isn't a Spread, but a hand flung out of view for a moment is.
+    pub parting_ms: u64,
     /// The key chord it sends: pressed in order, released in reverse.
     #[serde(deserialize_with = "keys_only")]
     pub keys: Vec<Button>,
@@ -165,7 +168,7 @@ mod tests {
     fn with_keys(keys: &str) -> Result<GestureFile, ron::error::SpannedError> {
         GestureFile::parse(&format!(
             "(gestures: [], spreads: [(poses: [Open], together: 0.2, held_ms: 150, \
-             apart: 0.32, within_ms: 450, keys: {keys})])"
+             apart: 0.32, within_ms: 450, parting_ms: 250, keys: {keys})])"
         ))
     }
 

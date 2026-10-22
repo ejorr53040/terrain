@@ -165,6 +165,14 @@ struct Arming {
     together_since: Option<u64>,
     /// When the palms were last together, having been so long enough (ms).
     armed_at: Option<u64>,
+    /// Whether it fired since it was armed: it stays armed after firing, so
+    /// a pinch still lingering from the palms meeting can't start a gesture.
+    fired: bool,
+    /// When both hands were last seen in a Spread's Poses (ms).
+    seen_at: Option<u64>,
+    /// How long, with both hands seen, since the palms were last together
+    /// (ms): a dropout or a stray Pose stops this clock.
+    parted_ms: u64,
 }
 
 impl Arming {
@@ -221,6 +229,9 @@ impl Engine {
             let Arming {
                 together_since: since,
                 armed_at: armed,
+                fired,
+                seen_at,
+                parted_ms,
             } = arming;
             if armed.is_some_and(|at| t_ms.saturating_sub(at) > g.within_ms) {
                 *armed = None;
@@ -228,7 +239,7 @@ impl Engine {
             let [a, b] = hands else {
                 // A hand flung to the edge of the view drops out for a moment
                 // mid-spread: that keeps it armed, for as long as it lasts.
-                *since = None;
+                (*since, *seen_at) = (None, None);
                 continue;
             };
             if self.active.is_some() {
@@ -238,20 +249,23 @@ impl Engine {
             // A hand opening to spread can read as another Pose for a frame
             // (a Vee, live): that keeps it armed, as a dropout does.
             if !g.poses.contains(&a.pose) || !g.poses.contains(&b.pose) {
-                *since = None;
+                (*since, *seen_at) = (None, None);
                 continue;
             }
             let gap = (a.position - b.position).truncate().length();
+            *parted_ms += seen_at.map_or(0, |at| t_ms.saturating_sub(at));
+            *seen_at = Some(t_ms);
             if gap < g.together {
+                *parted_ms = 0;
                 let from = *since.get_or_insert(t_ms);
                 if t_ms.saturating_sub(from) >= g.held_ms {
-                    *armed = Some(t_ms);
+                    (*armed, *fired) = (Some(t_ms), false);
                 }
                 continue;
             }
             *since = None;
-            if armed.is_some() && gap > g.apart {
-                *armed = None;
+            if armed.is_some() && !*fired && gap > g.apart && *parted_ms <= g.parting_ms {
+                *fired = true;
                 actions.extend(g.keys.iter().map(|&k| Action::Press(k)));
                 actions.extend(g.keys.iter().rev().map(|&k| Action::Release(k)));
             }
