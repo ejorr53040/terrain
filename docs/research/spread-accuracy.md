@@ -33,6 +33,17 @@ Where each loss started (last frame with both hands, image coordinates):
 
 Inferred, not verified: motion blur during the fling loses the landmarks, then the palm detector, which runs only every 3rd frame while one hand is followed (`SEARCH_EVERY = 3`), takes up to 100 ms more to find it again. Also: a 100–133 ms Spread is 3–4 frames at 30 fps, so timing thresholds sit on very few samples.
 
+## Baseline (#77, 2026-10-22)
+
+From `tools/clip_report.py`, before any tracking fix. Later tickets compare against this. Clips with no dropouts are left out.
+
+| Clip | 2 hands | 1 hand | none | Dropouts (ms) |
+|---|---|---|---|---|
+| spread_short | 374 | 41 | 185 | 633, 233, 333 |
+| full_screen_motion | 217 | 11 | 72 | 333 |
+| spread_in_control | 290 | 44 | 116 | 100, 66, 134 |
+| not_full_screen | 13 | 20 | 267 | 3566 (expected: the hands leave and come back by design) |
+
 ## What to try, best first
 
 1. **Capture: short fixed exposure, 60 fps.** `v4l2-ctl` with manual exposure (`auto_exposure=1`, `exposure_time_absolute` ~50–100) and the camera's 60 fps MJPEG mode if it has one. Tutorials and vendor docs name motion blur and fast movement as the main cause of landmark loss, and auto-exposure lengthens exposure in dim light [labellerr; warudo]. No controlled study found: measure by re-recording spread_short and counting 1-hand frames.
