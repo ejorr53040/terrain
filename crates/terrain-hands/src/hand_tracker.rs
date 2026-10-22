@@ -18,7 +18,8 @@ const MAX_HANDS: usize = 2;
 const SEARCH_EVERY: u32 = 3;
 /// ...but for this many frames after a followed hand is lost, look on
 /// every frame: a hand blurred out mid-gesture comes back fastest that way.
-/// As long as a hand can be gone before it's let go (`FORGET_AFTER_MS`).
+/// That's `FORGET_AFTER_MS`, how long a hand can be gone before it's let
+/// go, in frames at the camera's `FPS` (the tracker sees no timestamps).
 const REFIND_FRAMES: u32 = (FORGET_AFTER_MS * FPS as u64 / 1000) as u32;
 /// A new palm overlapping a tracked hand's region more than this (IoU), or
 /// centred inside it, is that same hand. Centred-inside is needed because a
@@ -78,11 +79,12 @@ impl HandTracker {
         // Hands followed from the last image, not palms found in this one:
         // a false palm the landmark model rejects is no hand lost.
         let followed = regions.len();
+        let mut lost = false;
         // Look for new hands while there's room for them: on every image
         // while none are followed, now and then while one is.
         self.since_search += 1;
-        self.refinding = self.refinding.saturating_sub(1);
         let due = self.since_search >= SEARCH_EVERY || self.refinding > 0;
+        self.refinding = self.refinding.saturating_sub(1);
         if regions.is_empty() || regions.len() < MAX_HANDS && due {
             self.since_search = 0;
             for palm in self.palms.detect(image)? {
@@ -96,8 +98,10 @@ impl HandTracker {
             }
         }
         let mut tracked = Vec::new();
-        for (region, vote) in regions {
+        for (i, (region, vote)) in regions.into_iter().enumerate() {
             let Some(mut hand) = self.landmarks.landmarks(image, &region)? else {
+                // Two regions converging on one hand, below, lose no hand.
+                lost |= i < followed;
                 continue;
             };
             let next = next_region(&hand, image);
@@ -114,7 +118,7 @@ impl HandTracker {
             self.regions.push((next, vote));
             tracked.push(TrackedHand { hand, region });
         }
-        if tracked.len() < followed {
+        if lost {
             self.refinding = REFIND_FRAMES;
         }
         Ok(tracked)
