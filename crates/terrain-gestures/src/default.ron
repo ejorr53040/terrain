@@ -164,11 +164,16 @@
             // The recorded take: together 14-15 cm, spread 36-49 cm, hands
             // resting apart 24-25 cm (so resting never arms it). Its spreads
             // crossed from together to apart in 200-400 ms; a 1.5 s drift
-            // apart takes 530.
+            // apart takes 530. A later take (spread_short) parted only to
+            // 28-31 cm, resting there between Spreads: being armed, not
+            // distance, is what keeps resting hands from toggling. Its
+            // spreads parted in 100-133 ms with both hands seen; a 1.5 s
+            // drift apart takes 300, a hand flung out of view no time.
             together: 0.20,
             held_ms: 150,
-            apart: 0.32,
+            apart: 0.26,
             within_ms: 450,
+            parting_ms: 200,
             // Omarchy's full screen.
             keys: [Super, F],
         ),
