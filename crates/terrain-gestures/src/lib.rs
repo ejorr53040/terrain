@@ -163,6 +163,10 @@ pub struct Engine {
 struct Arming {
     /// Since when the palms have been together (ms).
     together_since: Option<u64>,
+    /// When the palms were last seen near enough to be coming together
+    /// (ms). Like the arming, a dropout or a stray Pose keeps it, for at
+    /// most `within_ms`.
+    near_at: Option<u64>,
     /// When the palms were last together, having been so long enough (ms).
     armed_at: Option<u64>,
     /// Whether it fired since it was armed: it stays armed after firing, so
@@ -176,10 +180,10 @@ struct Arming {
 }
 
 impl Arming {
-    /// Palms together or just parted: a pinch here is the palms meeting,
-    /// not a gesture of the hand with control.
+    /// Palms near, together or just parted: a pinch here is the palms
+    /// meeting, not a gesture of the hand with control.
     fn under_way(&self) -> bool {
-        self.together_since.is_some() || self.armed_at.is_some()
+        self.near_at.is_some() || self.together_since.is_some() || self.armed_at.is_some()
     }
 }
 
@@ -228,6 +232,7 @@ impl Engine {
         for (g, arming) in self.gestures.spreads.iter().zip(&mut self.spreads) {
             let Arming {
                 together_since: since,
+                near_at,
                 armed_at: armed,
                 fired,
                 seen_at,
@@ -236,6 +241,9 @@ impl Engine {
             if armed.is_some_and(|at| t_ms.saturating_sub(at) > g.within_ms) {
                 *armed = None;
             }
+            if near_at.is_some_and(|at| t_ms.saturating_sub(at) > g.within_ms) {
+                *near_at = None;
+            }
             let [a, b] = hands else {
                 // A hand flung to the edge of the view drops out for a moment
                 // mid-spread: that keeps it armed, for as long as it lasts.
@@ -243,7 +251,7 @@ impl Engine {
                 continue;
             };
             if self.active.is_some() {
-                (*since, *armed) = (None, None);
+                (*since, *armed, *near_at) = (None, None, None);
                 continue;
             }
             // A hand opening to spread can read as another Pose for a frame
@@ -253,6 +261,7 @@ impl Engine {
                 continue;
             }
             let gap = (a.position - b.position).truncate().length();
+            *near_at = (gap < g.near).then_some(t_ms);
             *parted_ms += seen_at.map_or(0, |at| t_ms.saturating_sub(at));
             *seen_at = Some(t_ms);
             if gap < g.together {
