@@ -3,7 +3,10 @@
 //! would replace.
 
 use std::{
-    fmt, io,
+    fmt,
+    io::{self, Read},
+    os::unix::process::CommandExt,
+    process::{Child, Command, Stdio},
     sync::{Arc, Condvar, Mutex, Weak},
     thread,
     time::{Duration, Instant},
@@ -13,6 +16,7 @@ use crate::RgbaImage;
 use v4l::{
     Device, FourCC, Fraction, Timestamp,
     buffer::Type,
+    control::{Control, Value},
     io::traits::CaptureStream,
     prelude::MmapStream,
     video::{Capture, capture::Parameters},
@@ -30,6 +34,15 @@ pub const HEIGHT: u32 = 720;
 pub const FPS: u32 = 30;
 
 const MJPG: FourCC = FourCC { repr: *b"MJPG" };
+
+/// V4L2's exposure_dynamic_framerate: auto exposure may drop the frame
+/// rate in dim light, exposing longer and blurring fast hands. terrain turns
+/// it off while the camera is open (#78).
+const DYNAMIC_FRAMERATE: u32 = 0x009a_0903;
+/// Set (to anything) to leave the camera's settings alone.
+pub const KEEP_SETTINGS_ENV: &str = "TERRAIN_CAMERA_KEEP_SETTINGS";
+/// Starts this binary as the watchdog that gives the camera its setting back.
+const WATCH_ARG: &str = "--restore-camera-setting";
 
 /// A camera that sends nothing for this long is treated as failed.
 const STALL_TIMEOUT: Duration = Duration::from_secs(2);
@@ -100,6 +113,21 @@ struct Slot {
 /// A webcam streaming on a background thread. Dropping it stops capture.
 pub struct Camera {
     slot: Arc<Slot>,
+    _watchdog: Option<Watchdog>,
+}
+
+/// A child process that gives the camera its own setting back once terrain
+/// is done with it: its pipe from terrain closes however terrain ends, a
+/// SIGKILL or a crash included.
+struct Watchdog(Child);
+
+impl Drop for Watchdog {
+    fn drop(&mut self) {
+        // Closing the pipe tells it; waiting means a camera opened again
+        // straight after reads the camera's own setting, not ours.
+        drop(self.0.stdin.take());
+        let _ = self.0.wait();
+    }
 }
 
 impl Camera {
@@ -124,6 +152,7 @@ impl Camera {
         }
         dev.set_params(&Parameters::new(Fraction::new(1, FPS)))
             .map_err(open_err)?;
+        let watchdog = fix_frame_rate(&dev, device).map_err(open_err)?;
         let mut stream = MmapStream::with_buffers(&dev, Type::VideoCapture, 4).map_err(open_err)?;
         stream.set_timeout(STALL_TIMEOUT);
 
@@ -140,7 +169,10 @@ impl Camera {
                 }
             })
             .map_err(open_err)?;
-        Ok(Self { slot })
+        Ok(Self {
+            slot,
+            _watchdog: watchdog,
+        })
     }
 
     /// The newest frame since the last call, if any. Never blocks.
@@ -166,6 +198,63 @@ impl Camera {
     pub fn failure(&self) -> Option<String> {
         self.slot.shared.lock().unwrap().failed.clone()
     }
+}
+
+/// Turns dynamic framerate off, with a watchdog to turn it back on. Does
+/// nothing if it's off already, the camera has no such control, or
+/// `KEEP_SETTINGS_ENV` is set.
+fn fix_frame_rate(dev: &Device, device: &str) -> io::Result<Option<Watchdog>> {
+    if std::env::var_os(KEEP_SETTINGS_ENV).is_some() {
+        return Ok(None);
+    }
+    let Ok(Control {
+        value: Value::Boolean(true),
+        ..
+    }) = dev.control(DYNAMIC_FRAMERATE)
+    else {
+        return Ok(None);
+    };
+    // The watchdog first: if it can't start, the setting stays untouched.
+    let child = Command::new(std::env::current_exe()?)
+        .args([WATCH_ARG, device])
+        .stdin(Stdio::piped())
+        // Its own process group, so Ctrl-C at the terminal doesn't stop it.
+        .process_group(0)
+        .spawn()?;
+    let watchdog = Watchdog(child);
+    dev.set_control(Control {
+        id: DYNAMIC_FRAMERATE,
+        value: Value::Boolean(false),
+    })?;
+    Ok(Some(watchdog))
+}
+
+/// Every binary that opens a `Camera` calls this first thing in `main`:
+/// started as the watchdog, it waits for terrain to end, turns the camera's
+/// dynamic framerate back on, and exits.
+pub fn watch_if_asked() {
+    let args: Vec<String> = std::env::args().collect();
+    let [_, flag, device] = args.as_slice() else {
+        return;
+    };
+    if flag != WATCH_ARG {
+        return;
+    }
+    after_eof(io::stdin(), || {
+        if let Ok(dev) = Device::with_path(device) {
+            let _ = dev.set_control(Control {
+                id: DYNAMIC_FRAMERATE,
+                value: Value::Boolean(true),
+            });
+        }
+    });
+    std::process::exit(0);
+}
+
+/// Runs `then` once `input` ends: the pipe from terrain closing.
+fn after_eof(mut input: impl Read, then: impl FnOnce()) {
+    let _ = io::copy(&mut input, &mut io::sink());
+    then();
 }
 
 /// Streams until the `Camera` is dropped (`Ok`) or the device fails or
@@ -222,4 +311,22 @@ fn driver_instant(stamp: Timestamp) -> Option<Instant> {
     );
     let age = now.checked_sub(stamped)?;
     (age < STALL_TIMEOUT).then(|| read_at - age)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_watchdog_restores_only_once_its_pipe_from_terrain_closes() {
+        use std::{io::Write, sync::mpsc};
+        let (reader, mut writer) = io::pipe().unwrap();
+        let (done, restored) = mpsc::channel();
+        let watching = thread::spawn(move || after_eof(reader, || done.send(()).unwrap()));
+        writer.write_all(b"still here").unwrap();
+        assert!(restored.recv_timeout(Duration::from_millis(200)).is_err(), "too soon");
+        drop(writer); // terrain ends
+        restored.recv_timeout(Duration::from_secs(2)).expect("restored");
+        watching.join().unwrap();
+    }
 }
