@@ -4,6 +4,7 @@
 //! `cargo test -p terrain-desktop --test it camera -- --ignored`.
 
 use std::{
+    os::unix::process::CommandExt,
     process::{Child, Command, Stdio},
     thread,
     time::{Duration, Instant},
@@ -53,6 +54,9 @@ fn start() -> Running {
         .args(["--dry-run", "--camera", DEVICE])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
+        // Its own process group, as a shell job is, so a test can signal
+        // the group the way Ctrl-C at the terminal does.
+        .process_group(0)
         .spawn()
         .unwrap();
     let running = Running(child);
@@ -79,4 +83,41 @@ fn the_camera_gets_its_settings_back_after_ctrl_c() {
         .unwrap();
     running.0.wait().unwrap();
     assert!(becomes(1), "restored after Ctrl-C");
+}
+
+/// Sends `signal` to `targets` (pids, or -pgid for a whole group).
+fn send(signal: &str, targets: &[String]) {
+    Command::new("kill")
+        .arg(signal)
+        .arg("--")
+        .args(targets)
+        .status()
+        .unwrap();
+}
+
+#[test]
+#[ignore = "needs the webcam"]
+fn the_camera_gets_its_settings_back_after_ctrl_c_at_the_terminal() {
+    // The terminal sends SIGINT to the whole foreground job.
+    let mut running = start();
+    send("-INT", &[format!("-{}", running.0.id())]);
+    running.0.wait().unwrap();
+    assert!(becomes(1), "restored after Ctrl-C to the job");
+}
+
+#[test]
+#[ignore = "needs the webcam"]
+fn the_camera_gets_its_settings_back_when_every_terrain_process_is_terminated() {
+    // pkill terrain-desktop, or logging out, signals the watchdog too.
+    let mut running = start();
+    let pid = running.0.id().to_string();
+    let out = Command::new("pgrep").args(["-x", "terrain-desktop"]).output().unwrap();
+    let all: Vec<String> = String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .map(String::from)
+        .collect();
+    assert!(all.len() >= 2 && all.contains(&pid), "terrain and its watchdog: {all:?}");
+    send("-TERM", &all);
+    running.0.wait().unwrap();
+    assert!(becomes(1), "restored after SIGTERM to every terrain process");
 }

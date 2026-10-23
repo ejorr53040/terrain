@@ -4,10 +4,10 @@
 
 use std::{
     fmt,
-    io::{self, Read},
+    io::{self, Read, Write},
     os::unix::process::CommandExt,
     process::{Child, Command, Stdio},
-    sync::{Arc, Condvar, Mutex, Weak},
+    sync::{Arc, Condvar, Mutex, Weak, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -40,9 +40,13 @@ const MJPG: FourCC = FourCC { repr: *b"MJPG" };
 /// it off while the camera is open (#78).
 const DYNAMIC_FRAMERATE: u32 = 0x009a_0903;
 /// Set (to anything) to leave the camera's settings alone.
-pub const KEEP_SETTINGS_ENV: &str = "TERRAIN_CAMERA_KEEP_SETTINGS";
+const KEEP_SETTINGS_ENV: &str = "TERRAIN_CAMERA_KEEP_SETTINGS";
 /// Starts this binary as the watchdog that gives the camera its setting back.
 const WATCH_ARG: &str = "--restore-camera-setting";
+/// What the watchdog says once it's watching, before terrain changes anything.
+const READY: &[u8] = b"terrain camera watchdog ready\n";
+/// How long terrain waits to hear it.
+const READY_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// A camera that sends nothing for this long is treated as failed.
 const STALL_TIMEOUT: Duration = Duration::from_secs(2);
@@ -152,7 +156,7 @@ impl Camera {
         }
         dev.set_params(&Parameters::new(Fraction::new(1, FPS)))
             .map_err(open_err)?;
-        let watchdog = fix_frame_rate(&dev, device).map_err(open_err)?;
+        let watchdog = steady_frame_rate(&dev, device);
         let mut stream = MmapStream::with_buffers(&dev, Type::VideoCapture, 4).map_err(open_err)?;
         stream.set_timeout(STALL_TIMEOUT);
 
@@ -202,31 +206,71 @@ impl Camera {
 
 /// Turns dynamic framerate off, with a watchdog to turn it back on. Does
 /// nothing if it's off already, the camera has no such control, or
-/// `KEEP_SETTINGS_ENV` is set.
-fn fix_frame_rate(dev: &Device, device: &str) -> io::Result<Option<Watchdog>> {
+/// `KEEP_SETTINGS_ENV` is set. If the watchdog can't start, it says so and
+/// leaves the camera alone: tracking matters more than the frame rate.
+fn steady_frame_rate(dev: &Device, device: &str) -> Option<Watchdog> {
     if std::env::var_os(KEEP_SETTINGS_ENV).is_some() {
-        return Ok(None);
+        return None;
     }
     let Ok(Control {
         value: Value::Boolean(true),
         ..
     }) = dev.control(DYNAMIC_FRAMERATE)
     else {
-        return Ok(None);
+        return None;
     };
-    // The watchdog first: if it can't start, the setting stays untouched.
-    let child = Command::new(std::env::current_exe()?)
+    let watchdog = match start_watchdog(device) {
+        Ok(watchdog) => watchdog,
+        Err(e) => {
+            eprintln!("camera {device}: leaving dynamic framerate on, with no watchdog: {e}");
+            return None;
+        }
+    };
+    if let Err(e) = set_dynamic_framerate(dev, false) {
+        eprintln!("camera {device}: can't turn dynamic framerate off: {e}");
+        return None;
+    }
+    Some(watchdog)
+}
+
+/// Starts this binary as the watchdog, and waits for it to say it's
+/// watching before terrain changes anything.
+fn start_watchdog(device: &str) -> io::Result<Watchdog> {
+    let exe = std::env::current_exe()?;
+    let mut child = Command::new(&exe)
         .args([WATCH_ARG, device])
+        // Should it run as anything but the watchdog, it mustn't start one
+        // of its own.
+        .env(KEEP_SETTINGS_ENV, "1")
         .stdin(Stdio::piped())
-        // Its own process group, so Ctrl-C at the terminal doesn't stop it.
+        .stdout(Stdio::piped())
+        // Its own process group, so Ctrl-C at the terminal doesn't reach it.
         .process_group(0)
         .spawn()?;
-    let watchdog = Watchdog(child);
+    let mut says = child.stdout.take().expect("piped");
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut got = vec![0; READY.len()];
+        let _ = tx.send(says.read_exact(&mut got).map(|()| got));
+    });
+    match rx.recv_timeout(READY_TIMEOUT) {
+        Ok(Ok(got)) if got == READY => Ok(Watchdog(child)),
+        _ => {
+            let _ = child.kill();
+            let _ = child.wait();
+            Err(io::Error::other(format!(
+                "{} didn't start as one (its main must call watch_if_asked)",
+                exe.display()
+            )))
+        }
+    }
+}
+
+fn set_dynamic_framerate(dev: &Device, on: bool) -> io::Result<()> {
     dev.set_control(Control {
         id: DYNAMIC_FRAMERATE,
-        value: Value::Boolean(false),
-    })?;
-    Ok(Some(watchdog))
+        value: Value::Boolean(on),
+    })
 }
 
 /// Every binary that opens a `Camera` calls this first thing in `main`:
@@ -240,12 +284,21 @@ pub fn watch_if_asked() {
     if flag != WATCH_ARG {
         return;
     }
+    // pkill, logging out or closing the terminal signal the watchdog too:
+    // only the pipe from terrain closing ends the watch.
+    // SAFETY: setting a signal to be ignored runs no handler code.
+    unsafe {
+        for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+            libc::signal(signal, libc::SIG_IGN);
+        }
+    }
+    let mut out = io::stdout();
+    if out.write_all(READY).and_then(|()| out.flush()).is_err() {
+        std::process::exit(1);
+    }
     after_eof(io::stdin(), || {
-        if let Ok(dev) = Device::with_path(device) {
-            let _ = dev.set_control(Control {
-                id: DYNAMIC_FRAMERATE,
-                value: Value::Boolean(true),
-            });
+        if let Err(e) = Device::with_path(device).and_then(|dev| set_dynamic_framerate(&dev, true)) {
+            eprintln!("terrain's camera watchdog: can't turn {device}'s dynamic framerate back on: {e}");
         }
     });
     std::process::exit(0);
@@ -319,7 +372,6 @@ mod tests {
 
     #[test]
     fn the_watchdog_restores_only_once_its_pipe_from_terrain_closes() {
-        use std::{io::Write, sync::mpsc};
         let (reader, mut writer) = io::pipe().unwrap();
         let (done, restored) = mpsc::channel();
         let watching = thread::spawn(move || after_eof(reader, || done.send(()).unwrap()));
