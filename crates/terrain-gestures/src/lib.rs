@@ -281,6 +281,13 @@ impl Engine {
                 actions.extend(g.keys.iter().rev().map(|&k| Action::Release(k)));
             }
         }
+        // One parting is one Spread: hands that met in one Spread's Poses
+        // and parted in another's mustn't send both chords.
+        if !actions.is_empty() {
+            for arming in self.spreads.iter_mut().filter(|a| !a.fired) {
+                arming.armed_at = None;
+            }
+        }
         actions
     }
 

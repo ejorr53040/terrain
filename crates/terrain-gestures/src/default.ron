@@ -183,6 +183,7 @@
         ),
         (
             // Two Vees: a pose no other two-hand gesture or rest makes.
+            // Thresholds are full screen's, not yet measured on a Vee take.
             poses: [Vee],
             together: 0.20,
             near: 0.35,

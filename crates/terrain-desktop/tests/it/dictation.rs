@@ -43,6 +43,7 @@ fn two_vees_brought_together_then_spread_toggle_dictation() {
 
 #[test]
 fn two_vees_held_apart_do_nothing() {
+    // Resting hands sit about 27 cm apart: not together.
     let rest = Vec3::new(0.135, 0.0, 0.0);
     let inputs = Script::default()
         .hold_two((LOW - rest, Grip::Vee), (LOW + rest, Grip::Vee), 10)
@@ -87,11 +88,59 @@ fn a_vee_spread_with_a_hand_in_control_toggles_dictation_without_scrolling() {
         .run();
     assert!(
         inputs.iter().any(|i| matches!(i, Input::PointTo(_))),
-        "a hand took control"
+        "no hand took control: {inputs:?}"
     );
     assert!(
         !inputs.iter().any(|i| matches!(i, Input::Scroll(_))),
         "{inputs:?}"
     );
     assert_eq!(buttons(&inputs), dictation());
+}
+
+#[test]
+fn palms_meeting_open_then_spreading_as_vees_toggle_dictation_only() {
+    let inputs = Script::default()
+        .hold_two(
+            (LOW - TOGETHER, Grip::Open),
+            (LOW + TOGETHER, Grip::Open),
+            10,
+        )
+        .hold_two((LOW - TOGETHER, Grip::Vee), (LOW + TOGETHER, Grip::Vee), 6)
+        .sweep_both(
+            (LOW - TOGETHER, LOW - APART),
+            (LOW + TOGETHER, LOW + APART),
+            Grip::Vee,
+            4,
+        )
+        .hold_two((LOW - APART, Grip::Open), (LOW + APART, Grip::Open), 10)
+        .run();
+    assert_eq!(buttons(&inputs), dictation());
+}
+
+#[test]
+fn palms_meeting_as_vees_then_spreading_open_toggle_full_screen_only() {
+    let inputs = Script::default()
+        .hold_two((LOW - TOGETHER, Grip::Vee), (LOW + TOGETHER, Grip::Vee), 10)
+        .hold_two(
+            (LOW - TOGETHER, Grip::Open),
+            (LOW + TOGETHER, Grip::Open),
+            6,
+        )
+        .sweep_both(
+            (LOW - TOGETHER, LOW - APART),
+            (LOW + TOGETHER, LOW + APART),
+            Grip::Open,
+            4,
+        )
+        .hold_two((LOW - APART, Grip::Vee), (LOW + APART, Grip::Vee), 10)
+        .run();
+    assert_eq!(
+        buttons(&inputs),
+        vec![
+            Input::Press(Button::Super),
+            Input::Press(Button::F),
+            Input::Release(Button::F),
+            Input::Release(Button::Super),
+        ]
+    );
 }
