@@ -2,8 +2,8 @@
 //! palm points; a pinch works like a finger on a touchscreen (a tap clicks,
 //! moving drags, holding still and letting go right-clicks); a fist drags
 //! the window under the pointer; a Vee scrolls; two hands brought together
-//! then spread apart toggle full screen. What each gesture does is the built-in
-//! gesture file's (`terrain-gestures`).
+//! then spread apart toggle full screen, two Vees dictation. What each
+//! gesture does is the built-in gesture file's (`terrain-gestures`).
 //!
 //! A hand takes control only once it's held open in the reach for a
 //! moment, so hands typing at the keyboard below never click.
