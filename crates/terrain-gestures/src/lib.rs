@@ -75,6 +75,8 @@ pub enum Button {
     ArrowRight,
     ArrowUp,
     ArrowDown,
+    /// The X key: with Super + Ctrl, Omarchy's dictation toggle.
+    X,
 }
 
 /// A tracked hand, as the engine sees it.

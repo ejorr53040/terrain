@@ -181,5 +181,17 @@
             // Omarchy's full screen.
             keys: [Super, F],
         ),
+        (
+            // Two Vees: a pose no other two-hand gesture or rest makes.
+            poses: [Vee],
+            together: 0.20,
+            near: 0.35,
+            held_ms: 150,
+            apart: 0.26,
+            within_ms: 450,
+            parting_ms: 200,
+            // Omarchy's dictation (voxtype) toggle.
+            keys: [Super, Ctrl, X],
+        ),
     ],
 )
