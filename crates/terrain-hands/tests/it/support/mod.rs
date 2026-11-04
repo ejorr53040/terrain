@@ -83,6 +83,21 @@ impl Fixture {
         }
     }
 
+    /// This image with every column from `x` (pixels) on painted grey, so
+    /// a hand there is gone.
+    pub fn blanked_from(&self, x: u32) -> Self {
+        let width = self.width as usize;
+        let mut rgba = self.rgba.clone();
+        for row in rgba.chunks_mut(width * 4) {
+            row[x as usize * 4..].fill(128);
+        }
+        Self {
+            width: self.width,
+            height: self.height,
+            rgba,
+        }
+    }
+
     pub fn image(&self) -> RgbaImage<'_> {
         RgbaImage {
             width: self.width,
