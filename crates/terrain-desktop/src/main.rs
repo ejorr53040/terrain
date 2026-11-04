@@ -42,6 +42,7 @@ const REPORT_EVERY: Duration = Duration::from_secs(1);
 static STOP: AtomicBool = AtomicBool::new(false);
 
 fn main() {
+    terrain_hands::capture::watch_if_asked();
     let args: Vec<String> = std::env::args().collect();
     let option = |name: &str| {
         args.iter()

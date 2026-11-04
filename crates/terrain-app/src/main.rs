@@ -24,6 +24,7 @@ use terrain_app::{
 use terrain_hands::{HandSource, ReplaySource};
 
 fn main() -> AppExit {
+    terrain_hands::capture::watch_if_asked();
     let args: Vec<String> = std::env::args().collect();
     let option = |name: &str| {
         args.iter().position(|a| a == name).map(|i| {
