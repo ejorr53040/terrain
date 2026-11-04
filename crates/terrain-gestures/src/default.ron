@@ -170,6 +170,10 @@
             // spreads parted in 100-133 ms with both hands seen; a 1.5 s
             // drift apart takes 300, a hand flung out of view no time.
             together: 0.20,
+            // Hands read as pinching from about 30 cm apart as they come
+            // together (exposure sweep, 2026-10-22): closer than this, the
+            // hand with control's pinch is the palms meeting, not a click.
+            near: 0.35,
             held_ms: 150,
             apart: 0.26,
             within_ms: 450,

@@ -44,6 +44,29 @@ From `tools/clip_report.py`, before any tracking fix. Later tickets compare agai
 | spread_in_control | 290 | 44 | 116 | 100, 66, 134 |
 | not_full_screen | 13 | 20 | 267 | 3566 (expected: the hands leave and come back by design) |
 
+## Results (2026-10-22)
+
+**#79, re-find a lost hand at once**, replayed on the cached raw takes (same footage, tracker before vs after):
+
+| Take | Dropouts before (ms) | After (ms) |
+|---|---|---|
+| full_screen_motion | 333 | 166 |
+| spread_in_control | 100, 66, 134 | 100, 66, 67 |
+
+Frame time, replay skipping frames while the tracker is busy, 3 runs each: 27.4–29.6 fps before, 25.8–29.4 after: within run-to-run noise. Two hands already cost about 2 × 19 ms of landmarks, over the 33 ms budget, before and after.
+
+**#78, exposure sweep.** The webcam can't do 60 fps. The room is dim: auto exposure gets mean luma 128–153 by exposing long; manual 15.6 ms gets 35–48, 10 ms 25–29, 5 ms 12 (no hands found). Round 2, 20 s takes, 8–9 Spreads each (the auto take had 9):
+
+| Setting | Luma | Spreads fired | Dropouts (ms) | Clicks |
+|---|---|---|---|---|
+| auto, dynamic framerate off | 128 | 7/9 | none | 3 (held ~1 s: drags) |
+| 15.6 ms | 35 | 6/8 | none, but 93 frames with no hands | 1 |
+| 10 ms | 25 | 2/8 | 3767, 1067, 166 | 1 |
+
+Round 1 (10 s takes, ~4–6 Spreads) had auto with 6 dropouts mid-fling and 10 ms with 2, so blur is real, but without more light short exposures lose more than they gain. Verdict: auto exposure with dynamic framerate off (keeps 30 fps without darkening); no manual exposure until there's a lamp.
+
+**The remaining auto misses weren't tracking:** fingertips meeting read as pinching from ~30 cm apart, before the palms were within `together`, so the hand with control clicked (held as a drag) and blocked the Spread. Fixed in #85 (`near`, 35 cm); the take is clip `approach_pinch`, now 9/9 with no clicks. Live-checked by the user in a short session.
+
 ## What to try, best first
 
 1. **Capture: short fixed exposure, 60 fps.** `v4l2-ctl` with manual exposure (`auto_exposure=1`, `exposure_time_absolute` ~50–100) and the camera's 60 fps MJPEG mode if it has one. Tutorials and vendor docs name motion blur and fast movement as the main cause of landmark loss, and auto-exposure lengthens exposure in dim light [labellerr; warudo]. No controlled study found: measure by re-recording spread_short and counting 1-hand frames.
