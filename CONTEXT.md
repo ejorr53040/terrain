@@ -27,12 +27,24 @@ A recognized pattern of poses and movement over time, such as a Tap, Drag or Lon
 _Avoid_: Command, motion
 
 **Flick**:
-A pinch or fist moved quickly in one direction (left, right, up, down), however long it was held still first, as opposed to the slower move of a Drag. Flicks send herdr's key chords.
+A pinch, fist or Vee moved quickly in one direction (left, right, up, down), however long it was held still first, as opposed to the slower move of a Drag or a Vee's scroll. Pinch and fist flicks send herdr's key chords; a Vee flick left undoes, right redoes.
 _Avoid_: Swipe
 
 **Spread**:
 Two hands brought together, then spread apart quickly. It needs no Engagement, since two hands meeting in front of the chest don't happen at the keyboard, and so it can only send a key chord, never a click (ADR 0008). Spread toggles full screen.
 _Avoid_: Expand, zoom out
+
+**Wave**:
+An engaged open hand swept side to side, turning back several times in about a second. Wave sends Escape.
+_Avoid_: Shake, swipe
+
+**Bump**:
+Two fists brought together. Like a Spread, it needs no Engagement and sends only a key chord. Bump takes a screenshot.
+_Avoid_: Fist bump, punch, knock
+
+**Zoom**:
+An engaged pinching hand and the other hand pinching, starting well apart, then moved apart to zoom in or together to zoom out, one step per stretch of distance. The same motion stretches a shape in the cube world.
+_Avoid_: Pinch zoom, Stretch (in the desktop)
 
 **Engagement**:
 Whether a hand has control. A hand gains it by being raised open into the reach and loses it by being lowered. Engagement is not a gesture and can't be rebound.
