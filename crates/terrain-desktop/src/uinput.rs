@@ -35,6 +35,7 @@ const KEY_H: u16 = 35;
 const KEY_J: u16 = 36;
 const KEY_K: u16 = 37;
 const KEY_L: u16 = 38;
+const KEY_X: u16 = 45;
 const KEY_LEFTALT: u16 = 56;
 const KEY_UP: u16 = 103;
 const KEY_LEFT: u16 = 105;
@@ -279,6 +280,7 @@ impl VirtualDesktop {
             Button::ArrowRight => self.keyboard.send(&[(EV_KEY, KEY_RIGHT, value)]),
             Button::ArrowUp => self.keyboard.send(&[(EV_KEY, KEY_UP, value)]),
             Button::ArrowDown => self.keyboard.send(&[(EV_KEY, KEY_DOWN, value)]),
+            Button::X => self.keyboard.send(&[(EV_KEY, KEY_X, value)]),
         }
     }
 }

@@ -3,6 +3,7 @@
 
 mod camera_settings;
 mod clicks;
+mod dictation;
 mod engage;
 mod full_screen;
 mod goldens;

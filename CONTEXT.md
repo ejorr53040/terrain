@@ -31,7 +31,7 @@ A pinch, fist or Vee moved quickly in one direction (left, right, up, down), how
 _Avoid_: Swipe
 
 **Spread**:
-Two hands brought together, then spread apart quickly. It needs no Engagement, since two hands meeting in front of the chest don't happen at the keyboard, and so it can only send a key chord, never a click (ADR 0008). Spread toggles full screen.
+Two hands brought together, then spread apart quickly. It needs no Engagement, since two hands meeting in front of the chest don't happen at the keyboard, and so it can only send a key chord, never a click (ADR 0008). An open-hand Spread toggles full screen; a Spread of two Vees toggles dictation (Omarchy's voxtype, Super+Ctrl+X).
 _Avoid_: Expand, zoom out
 
 **Wave**:

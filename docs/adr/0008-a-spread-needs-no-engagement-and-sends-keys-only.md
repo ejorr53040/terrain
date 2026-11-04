@@ -25,3 +25,7 @@ A Spread (two hands brought together, then spread apart quickly) toggles full sc
 A Bump (two fists brought together) takes a screenshot (Omarchy's Super+Shift+R) on the same terms: any two hands, no Engagement, a key chord only. Like the palms of a Spread, fists meeting can't happen at the keyboard. The Spread consequences carry over with fists for palms: a Bump is only considered while neither hand is in a one-hand gesture, and while the fists are together the hand with control can't start a gesture (its still fist would otherwise sit in the "✊ Fist" state and block the Bump). A Bump fires once and re-arms when the fists part or a hand opens.
 
 Zoom, the other two-hand gesture added at the same time, does not get this exception. Two hands pinching well apart can happen at the keyboard, so Zoom needs a hand with control.
+
+## Amendment (2026-10-24): Dictation
+
+Two Vees brought together, then spread apart, toggle dictation (Omarchy's voxtype, Super+Ctrl+X) on the same terms: a second Spread in the gesture file, its Poses `[Vee]`, any two hands, no Engagement, a key chord only. Two Vees meeting can't happen at the keyboard either. While both hands are Vees within `near`, the hand with control can't start a Vee scroll. One parting fires at most one Spread: hands that meet in one Spread's Poses and part in another's send only the chord of the one that fired first. Its thresholds are full screen's, unmeasured for Vees, until a recorded take sets them.
