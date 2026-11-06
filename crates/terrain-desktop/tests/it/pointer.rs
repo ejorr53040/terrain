@@ -1,10 +1,9 @@
 //! The palm points: where the hand is in the reach is where the pointer
 //! is on the screen.
 
-
-use glam::{Vec2, Vec3};
 use crate::support::{Grip, Script, buttons, last_point};
-use terrain_desktop::{Button, Input};
+use glam::{Vec2, Vec3};
+use terrain_desktop::{Action, Button};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
 
@@ -25,7 +24,7 @@ fn a_pinch_clicks_where_the_hand_points() {
         .run();
     assert_eq!(
         buttons(&inputs),
-        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+        vec![Action::Press(Button::Left), Action::Release(Button::Left)]
     );
 }
 
@@ -62,7 +61,7 @@ fn a_hand_that_leaves_view_mid_drag_lets_go() {
         .run();
     assert_eq!(
         buttons(&inputs),
-        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+        vec![Action::Press(Button::Left), Action::Release(Button::Left)]
     );
 }
 
@@ -74,5 +73,5 @@ fn a_brief_dropout_mid_drag_keeps_holding() {
         .gone(3)
         .hold(AHEAD + Vec3::new(0.05, 0.0, 0.0), Grip::Pinch, 10)
         .run();
-    assert_eq!(buttons(&inputs), vec![Input::Press(Button::Left)]);
+    assert_eq!(buttons(&inputs), vec![Action::Press(Button::Left)]);
 }

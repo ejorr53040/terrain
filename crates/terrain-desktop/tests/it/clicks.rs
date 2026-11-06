@@ -1,10 +1,9 @@
 //! A pinch works like a finger on a touchscreen: a tap clicks, a pinch
 //! that moves drags, a pinch held still opens the context menu.
 
-
-use glam::Vec3;
 use crate::support::{Grip, Script, buttons, point_at_each_button};
-use terrain_desktop::{Button, Input};
+use glam::Vec3;
+use terrain_desktop::{Action, Button};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
 const RIGHT: Vec3 = Vec3::new(0.08, 0.0, 0.6);
@@ -19,7 +18,7 @@ fn a_quick_pinch_clicks_where_it_started() {
     let at = point_at_each_button(&inputs);
     assert_eq!(
         buttons(&inputs),
-        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+        vec![Action::Press(Button::Left), Action::Release(Button::Left)]
     );
     assert_eq!(at[0].1, at[1].1, "the pointer held still through the click");
 }
@@ -33,7 +32,7 @@ fn a_pinch_held_still_right_clicks_once() {
         .run();
     assert_eq!(
         buttons(&inputs),
-        vec![Input::Press(Button::Right), Input::Release(Button::Right)]
+        vec![Action::Press(Button::Right), Action::Release(Button::Right)]
     );
 }
 
@@ -48,7 +47,7 @@ fn a_pinch_that_moves_drags_from_where_it_started() {
         .run();
     assert_eq!(
         buttons(&inputs),
-        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+        vec![Action::Press(Button::Left), Action::Release(Button::Left)]
     );
     let at = point_at_each_button(&inputs);
     let (pressed, released) = (at[0].1.unwrap(), at[1].1.unwrap());
@@ -69,7 +68,7 @@ fn a_pinch_held_still_then_moved_drags_instead_of_right_clicking() {
         .run();
     assert_eq!(
         buttons(&inputs),
-        vec![Input::Press(Button::Left), Input::Release(Button::Left)]
+        vec![Action::Press(Button::Left), Action::Release(Button::Left)]
     );
     let pressed = point_at_each_button(&inputs)[0].1.unwrap();
     assert!((pressed.x - 0.5).abs() < 0.02, "pressed at {pressed}");
@@ -101,8 +100,8 @@ fn a_pinch_right_clicks_from_six_tenths_of_a_second_still() {
                 .run(),
         )
     };
-    let left = vec![Input::Press(Button::Left), Input::Release(Button::Left)];
-    let right = vec![Input::Press(Button::Right), Input::Release(Button::Right)];
+    let left = vec![Action::Press(Button::Left), Action::Release(Button::Left)];
+    let right = vec![Action::Press(Button::Right), Action::Release(Button::Right)];
     assert_eq!(opened_after(20), left, "open after 0.66 s: a tap");
     assert_eq!(opened_after(24), right, "open after 0.79 s: a long press");
 }

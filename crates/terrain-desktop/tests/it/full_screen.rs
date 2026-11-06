@@ -3,7 +3,7 @@
 
 use crate::support::{Grip, Script, buttons};
 use glam::Vec3;
-use terrain_desktop::{Button, Input};
+use terrain_desktop::{Action, Button};
 
 /// Low in front of the chest, where the recorded take held them: below the
 /// Reach, so neither hand takes control.
@@ -13,12 +13,12 @@ const TOGETHER: Vec3 = Vec3::new(0.08, 0.0, 0.0);
 /// Palms 50 cm apart.
 const APART: Vec3 = Vec3::new(0.25, 0.0, 0.0);
 
-fn full_screen() -> Vec<Input> {
+fn full_screen() -> Vec<Action> {
     vec![
-        Input::Press(Button::Super),
-        Input::Press(Button::F),
-        Input::Release(Button::F),
-        Input::Release(Button::Super),
+        Action::Press(Button::Super),
+        Action::Press(Button::F),
+        Action::Release(Button::F),
+        Action::Release(Button::Super),
     ]
 }
 
@@ -136,7 +136,7 @@ fn a_spread_while_the_other_hand_drags_does_nothing() {
     }
     let inputs = script.run();
     assert!(
-        !buttons(&inputs).contains(&Input::Press(Button::F)),
+        !buttons(&inputs).contains(&Action::Press(Button::F)),
         "{inputs:?}"
     );
 }

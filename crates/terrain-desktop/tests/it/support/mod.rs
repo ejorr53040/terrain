@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 
 use glam::{Vec2, Vec3};
-use terrain_desktop::{DesktopControl, Input, Status};
+use terrain_desktop::{Action, DesktopControl, Status};
 use terrain_hands::{CameraModel, Hand, HandFrame, Handedness, landmark};
 
 /// Time between camera frames in tests.
@@ -190,7 +190,7 @@ impl Script {
     }
 
     /// Everything a fresh `DesktopControl` does over the script.
-    pub fn run(&self) -> Vec<Input> {
+    pub fn run(&self) -> Vec<Action> {
         let mut control = DesktopControl::new(CameraModel::default());
         self.frames.iter().flat_map(|f| control.update(f)).collect()
     }
@@ -207,29 +207,29 @@ impl Script {
 
 /// Presses and releases only, without the pointer moves and scrolling
 /// between them.
-pub fn buttons(inputs: &[Input]) -> Vec<Input> {
+pub fn buttons(inputs: &[Action]) -> Vec<Action> {
     inputs
         .iter()
         .copied()
-        .filter(|i| matches!(i, Input::Press(_) | Input::Release(_)))
+        .filter(|i| matches!(i, Action::Press(_) | Action::Release(_)))
         .collect()
 }
 
 /// Where the pointer was last sent.
-pub fn last_point(inputs: &[Input]) -> Option<Vec2> {
+pub fn last_point(inputs: &[Action]) -> Option<Vec2> {
     inputs.iter().rev().find_map(|i| match i {
-        Input::PointTo(at) => Some(*at),
+        Action::PointTo(at) => Some(*at),
         _ => None,
     })
 }
 
 /// Where the pointer was when each button input happened.
-pub fn point_at_each_button(inputs: &[Input]) -> Vec<(Input, Option<Vec2>)> {
+pub fn point_at_each_button(inputs: &[Action]) -> Vec<(Action, Option<Vec2>)> {
     let mut at = None;
     let mut out = Vec::new();
     for &i in inputs {
         match i {
-            Input::PointTo(p) => at = Some(p),
+            Action::PointTo(p) => at = Some(p),
             other => out.push((other, at)),
         }
     }

@@ -16,12 +16,9 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
 use terrain_hands::{
-    HandTracker, LANDMARK_MODEL, LiveTracker, PALM_MODEL, TrackedHand,
-    capture::{self, Camera, CameraFrame},
+    LiveTracker, TrackedHand,
+    capture::{self, CameraFrame},
 };
-
-/// The webcam the preview opens by default.
-pub const DEFAULT_CAMERA: &str = "/dev/video0";
 
 /// Preview width as a fraction of the window's.
 const PREVIEW_WIDTH: f32 = 0.25;
@@ -105,14 +102,6 @@ impl Plugin for PreviewPlugin {
             (show_latest_frame, toggle_preview, show_preview, show_stats).chain(),
         );
     }
-}
-
-/// Opens the webcam at `device` and starts tracking hands in it.
-pub fn start_tracking(device: &str) -> Result<LiveTracker, String> {
-    let camera = Camera::open(device).map_err(|e| e.to_string())?;
-    let tracker = HandTracker::new(PALM_MODEL, LANDMARK_MODEL)
-        .map_err(|e| format!("can't load hand models from {PALM_MODEL}, {LANDMARK_MODEL}: {e}"))?;
-    LiveTracker::spawn(camera, tracker).map_err(|e| format!("can't start hand tracking: {e}"))
 }
 
 #[derive(Resource)]

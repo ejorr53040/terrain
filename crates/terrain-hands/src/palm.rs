@@ -26,8 +26,8 @@ const BOXES_OUTPUT: &str = "Identity";
 const SCORES_OUTPUT: &str = "Identity_1";
 /// Raw scores are clipped to ± this before the sigmoid, as MediaPipe does.
 const SCORE_CLIP: f32 = 100.0;
-/// At most this many hands are reported, best first.
-const MAX_HANDS: usize = 2;
+/// Hands found, and followed, at once.
+pub(crate) const MAX_HANDS: usize = 2;
 /// Detections scoring below this are dropped.
 const MIN_SCORE: f32 = 0.5;
 /// Detections overlapping more than this (IoU) are merged.

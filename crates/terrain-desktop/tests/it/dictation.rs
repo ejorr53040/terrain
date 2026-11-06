@@ -4,7 +4,7 @@
 
 use crate::support::{Grip, Script, buttons};
 use glam::Vec3;
-use terrain_desktop::{Button, Input};
+use terrain_desktop::{Action, Button};
 
 /// Low in front of the chest: below the Reach, so neither hand takes control.
 const LOW: Vec3 = Vec3::new(0.0, -0.15, 0.6);
@@ -13,14 +13,14 @@ const TOGETHER: Vec3 = Vec3::new(0.08, 0.0, 0.0);
 /// Palms 50 cm apart.
 const APART: Vec3 = Vec3::new(0.25, 0.0, 0.0);
 
-fn dictation() -> Vec<Input> {
+fn dictation() -> Vec<Action> {
     vec![
-        Input::Press(Button::Super),
-        Input::Press(Button::Ctrl),
-        Input::Press(Button::X),
-        Input::Release(Button::X),
-        Input::Release(Button::Ctrl),
-        Input::Release(Button::Super),
+        Action::Press(Button::Super),
+        Action::Press(Button::Ctrl),
+        Action::Press(Button::X),
+        Action::Release(Button::X),
+        Action::Release(Button::Ctrl),
+        Action::Release(Button::Super),
     ]
 }
 
@@ -87,11 +87,11 @@ fn a_vee_spread_with_a_hand_in_control_toggles_dictation_without_scrolling() {
         .hold_two((chest - APART, Grip::Vee), (chest + APART, Grip::Vee), 10)
         .run();
     assert!(
-        inputs.iter().any(|i| matches!(i, Input::PointTo(_))),
+        inputs.iter().any(|i| matches!(i, Action::PointTo(_))),
         "no hand took control: {inputs:?}"
     );
     assert!(
-        !inputs.iter().any(|i| matches!(i, Input::Scroll(_))),
+        !inputs.iter().any(|i| matches!(i, Action::Scroll(_))),
         "{inputs:?}"
     );
     assert_eq!(buttons(&inputs), dictation());
@@ -137,10 +137,10 @@ fn palms_meeting_as_vees_then_spreading_open_toggle_full_screen_only() {
     assert_eq!(
         buttons(&inputs),
         vec![
-            Input::Press(Button::Super),
-            Input::Press(Button::F),
-            Input::Release(Button::F),
-            Input::Release(Button::Super),
+            Action::Press(Button::Super),
+            Action::Press(Button::F),
+            Action::Release(Button::F),
+            Action::Release(Button::Super),
         ]
     );
 }

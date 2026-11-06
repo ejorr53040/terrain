@@ -15,7 +15,7 @@ use std::{
 };
 
 use crate::{
-    HandFrame, HandSource, HandTracker, TrackedHand,
+    HandFrame, HandSource, HandTracker, LANDMARK_MODEL, PALM_MODEL, TrackedHand,
     capture::{Camera, CameraFrame},
 };
 
@@ -51,9 +51,19 @@ pub struct LiveTracker {
 }
 
 impl LiveTracker {
+    /// Opens the webcam at `device`, loads the bundled hand models and
+    /// starts tracking; the error says which step failed.
+    pub fn start(device: &str) -> Result<Self, String> {
+        let camera = Camera::open(device).map_err(|e| e.to_string())?;
+        let tracker = HandTracker::new(PALM_MODEL, LANDMARK_MODEL).map_err(|e| {
+            format!("can't load hand models from {PALM_MODEL}, {LANDMARK_MODEL}: {e}")
+        })?;
+        Self::spawn(camera, tracker).map_err(|e| format!("can't start hand tracking: {e}"))
+    }
+
     /// Starts tracking `camera`'s frames with `tracker`. Fails only if the
     /// thread can't be started.
-    pub fn spawn(camera: Camera, mut tracker: HandTracker) -> io::Result<Self> {
+    fn spawn(camera: Camera, mut tracker: HandTracker) -> io::Result<Self> {
         let shared = Arc::new(Mutex::new(Shared::default()));
         let running = Arc::new(AtomicBool::new(true));
         let (out, keep_going) = (shared.clone(), running.clone());

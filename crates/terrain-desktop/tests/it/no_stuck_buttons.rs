@@ -2,11 +2,10 @@
 //! hands do, every press gets its release, and nothing stays held once the
 //! hand is lost or control is let go.
 
-
+use crate::support::{FRAME_MS, Grip, hand};
 use glam::Vec3;
 use proptest::prelude::*;
-use crate::support::{FRAME_MS, Grip, hand};
-use terrain_desktop::{Button, DesktopControl, Input};
+use terrain_desktop::{Action, Button, DesktopControl};
 use terrain_hands::{CameraModel, HandFrame};
 
 /// With no hand frame for this long, the app lets go (as `main` does).
@@ -49,18 +48,18 @@ fn stretch() -> impl Strategy<Value = Stretch> {
 struct Buttons(Vec<Button>);
 
 impl Buttons {
-    fn apply(&mut self, inputs: &[Input]) -> Result<(), String> {
+    fn apply(&mut self, inputs: &[Action]) -> Result<(), String> {
         for &input in inputs {
             match input {
-                Input::Press(b) if self.0.contains(&b) => {
+                Action::Press(b) if self.0.contains(&b) => {
                     return Err(format!("{b:?} pressed twice"));
                 }
-                Input::Press(b) => self.0.push(b),
-                Input::Release(b) if !self.0.contains(&b) => {
+                Action::Press(b) => self.0.push(b),
+                Action::Release(b) if !self.0.contains(&b) => {
                     return Err(format!("{b:?} released while up"));
                 }
-                Input::Release(b) => self.0.retain(|&x| x != b),
-                Input::PointTo(_) | Input::Scroll(_) => {}
+                Action::Release(b) => self.0.retain(|&x| x != b),
+                Action::PointTo(_) | Action::Scroll(_) => {}
             }
         }
         Ok(())

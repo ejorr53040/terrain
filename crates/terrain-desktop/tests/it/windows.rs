@@ -1,9 +1,8 @@
 //! A fist drags the window under the pointer (Super + left button).
 
-
-use glam::Vec3;
 use crate::support::{Grip, Script, buttons, point_at_each_button};
-use terrain_desktop::{Button, Input};
+use glam::Vec3;
+use terrain_desktop::{Action, Button};
 
 const AHEAD: Vec3 = Vec3::new(0.0, 0.0, 0.6);
 
@@ -62,12 +61,12 @@ fn losing_the_hand_mid_window_drag_lets_go_of_both() {
 }
 
 /// Super pressed, left pressed, left released, Super released: one window drag.
-fn one_window_drag() -> Vec<Input> {
+fn one_window_drag() -> Vec<Action> {
     vec![
-        Input::Press(Button::Super),
-        Input::Press(Button::Left),
-        Input::Release(Button::Left),
-        Input::Release(Button::Super),
+        Action::Press(Button::Super),
+        Action::Press(Button::Left),
+        Action::Release(Button::Left),
+        Action::Release(Button::Super),
     ]
 }
 

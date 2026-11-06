@@ -1,10 +1,7 @@
 //! `C` calibrates the camera: after a countdown, the hand held upright 50 cm
 //! from the lens sets the field of view and the camera's tilt.
 
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{path::PathBuf, time::Duration};
 
 use bevy::prelude::*;
 use terrain_hands::{CameraModel, Hand};
@@ -102,7 +99,7 @@ pub(crate) fn calibrate(
                     Ok(camera) => {
                         hands.estimator.set_camera(camera);
                         calibration.reset_scene = true;
-                        let saved = calibration.save_to.as_ref().map(|path| save(path, &camera));
+                        let saved = calibration.save_to.as_ref().map(|path| camera.save(path));
                         let mut outcome = format!("calibrated: {}", describe(&camera));
                         if let Some(Err(e)) = saved {
                             outcome += &format!(" (not saved: {e})");
@@ -135,28 +132,4 @@ fn middle_hand(hands: &[Hand]) -> Option<&Hand> {
     hands
         .iter()
         .min_by(|a, b| off_center(a).total_cmp(&off_center(b)))
-}
-
-fn save(path: &Path, camera: &CameraModel) -> std::io::Result<()> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    std::fs::write(path, serde_json::to_string_pretty(camera)?)
-}
-
-/// The camera saved at `path`, if there's a readable, plausible one. A
-/// missing file is normal; an unusable one is logged and ignored.
-pub fn load_camera(path: &Path) -> Option<CameraModel> {
-    let text = std::fs::read_to_string(path).ok()?;
-    match serde_json::from_str::<CameraModel>(&text) {
-        Ok(camera) if camera.plausible() => Some(camera),
-        Ok(_) => {
-            warn!("ignoring implausible calibration in {}", path.display());
-            None
-        }
-        Err(e) => {
-            warn!("ignoring unreadable calibration in {}: {e}", path.display());
-            None
-        }
-    }
 }

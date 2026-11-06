@@ -111,13 +111,22 @@ fn the_camera_gets_its_settings_back_when_every_terrain_process_is_terminated() 
     // pkill terrain-desktop, or logging out, signals the watchdog too.
     let mut running = start();
     let pid = running.0.id().to_string();
-    let out = Command::new("pgrep").args(["-x", "terrain-desktop"]).output().unwrap();
+    let out = Command::new("pgrep")
+        .args(["-x", "terrain-desktop"])
+        .output()
+        .unwrap();
     let all: Vec<String> = String::from_utf8_lossy(&out.stdout)
         .split_whitespace()
         .map(String::from)
         .collect();
-    assert!(all.len() >= 2 && all.contains(&pid), "terrain and its watchdog: {all:?}");
+    assert!(
+        all.len() >= 2 && all.contains(&pid),
+        "terrain and its watchdog: {all:?}"
+    );
     send("-TERM", &all);
     running.0.wait().unwrap();
-    assert!(becomes(1), "restored after SIGTERM to every terrain process");
+    assert!(
+        becomes(1),
+        "restored after SIGTERM to every terrain process"
+    );
 }

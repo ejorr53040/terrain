@@ -25,10 +25,8 @@ use std::{
 };
 
 use glam::Vec2;
-use terrain_desktop::{DesktopControl, Input, Status, VirtualDesktop};
-use terrain_hands::{
-    CameraModel, HandSource, HandTracker, LANDMARK_MODEL, LiveTracker, PALM_MODEL, capture::Camera,
-};
+use terrain_desktop::{Action, DesktopControl, Status, VirtualDesktop};
+use terrain_hands::{CameraModel, HandSource, LiveTracker, capture};
 
 /// How often new hand frames are looked for.
 const POLL: Duration = Duration::from_millis(4);
@@ -66,23 +64,19 @@ fn main() {
         return;
     }
 
-    let device = option("--camera").unwrap_or_else(|| "/dev/video0".into());
-    let camera = calibration_file()
-        .and_then(|path| std::fs::read_to_string(path).ok())
-        .and_then(|text| serde_json::from_str::<CameraModel>(&text).ok())
-        .filter(CameraModel::plausible)
-        .unwrap_or_default();
-    let tracker = Camera::open(&device)
-        .map_err(|e| e.to_string())
-        .and_then(|camera| {
-            let tracker = HandTracker::new(PALM_MODEL, LANDMARK_MODEL)
-                .map_err(|e| format!("can't load hand models: {e}"))?;
-            LiveTracker::spawn(camera, tracker).map_err(|e| e.to_string())
+    let device = option("--camera").unwrap_or_else(|| capture::DEFAULT_DEVICE.into());
+    let camera = CameraModel::saved_path()
+        .and_then(|path| {
+            CameraModel::load(&path).unwrap_or_else(|e| {
+                eprintln!("ignoring the calibration in {}: {e}", path.display());
+                None
+            })
         })
-        .unwrap_or_else(|e| {
-            eprintln!("can't start hand tracking on {device}: {e}");
-            std::process::exit(1);
-        });
+        .unwrap_or_default();
+    let tracker = LiveTracker::start(&device).unwrap_or_else(|e| {
+        eprintln!("can't start hand tracking on {device}: {e}");
+        std::process::exit(1);
+    });
     let mut hands = tracker.hand_source();
     let mut control = DesktopControl::new(camera);
     let started = Instant::now();
@@ -132,14 +126,14 @@ fn main() {
         }
         for input in inputs {
             match input {
-                Input::PointTo(at) if dry_run && last_report.elapsed() > REPORT_EVERY => {
+                Action::PointTo(at) if dry_run && last_report.elapsed() > REPORT_EVERY => {
                     last_report = Instant::now();
                     eprintln!(
                         "{t_ms:>7} ms  {hand_count} hand(s), pointing at ({:.2}, {:.2})",
                         at.x, at.y
                     )
                 }
-                Input::PointTo(_) | Input::Scroll(_) => {}
+                Action::PointTo(_) | Action::Scroll(_) => {}
                 other => eprintln!("{t_ms:>7} ms  {other:?}"),
             }
             if let Some(desktop) = &mut desktop
@@ -184,7 +178,7 @@ fn probe(desktop: &mut VirtualDesktop) {
     while !STOP.load(Ordering::Relaxed) && started.elapsed() < Duration::from_secs(4) {
         let a = started.elapsed().as_secs_f32() * 2.0;
         let at = Vec2::splat(0.5) + 0.3 * Vec2::new(a.cos(), a.sin());
-        desktop.apply(Input::PointTo(at)).expect("pointer input");
+        desktop.apply(Action::PointTo(at)).expect("pointer input");
         thread::sleep(Duration::from_millis(10));
     }
 }
@@ -199,13 +193,4 @@ fn stop_on_signals() {
         libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
         libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
     }
-}
-
-/// Where the 3D app keeps calibration: `$XDG_CONFIG_HOME/terrain`, or `~/.config/terrain`.
-fn calibration_file() -> Option<PathBuf> {
-    let config = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .filter(|p| p.is_absolute())
-        .or_else(|| Some(PathBuf::from(std::env::var_os("HOME")?).join(".config")))?;
-    Some(config.join("terrain").join("calibration.json"))
 }

@@ -26,6 +26,8 @@ use zune_jpeg::{
     zune_core::{bytestream::ZCursor, colorspace::ColorSpace, options::DecoderOptions},
 };
 
+/// The webcam used when none is named.
+pub const DEFAULT_DEVICE: &str = "/dev/video0";
 /// Width of the capture mode asked of the camera, in pixels.
 pub const WIDTH: u32 = 1280;
 /// Height of the capture mode asked of the camera, in pixels.
@@ -297,8 +299,11 @@ pub fn watch_if_asked() {
         std::process::exit(1);
     }
     after_eof(io::stdin(), || {
-        if let Err(e) = Device::with_path(device).and_then(|dev| set_dynamic_framerate(&dev, true)) {
-            eprintln!("terrain's camera watchdog: can't turn {device}'s dynamic framerate back on: {e}");
+        if let Err(e) = Device::with_path(device).and_then(|dev| set_dynamic_framerate(&dev, true))
+        {
+            eprintln!(
+                "terrain's camera watchdog: can't turn {device}'s dynamic framerate back on: {e}"
+            );
         }
     });
     std::process::exit(0);
@@ -376,9 +381,14 @@ mod tests {
         let (done, restored) = mpsc::channel();
         let watching = thread::spawn(move || after_eof(reader, || done.send(()).unwrap()));
         writer.write_all(b"still here").unwrap();
-        assert!(restored.recv_timeout(Duration::from_millis(200)).is_err(), "too soon");
+        assert!(
+            restored.recv_timeout(Duration::from_millis(200)).is_err(),
+            "too soon"
+        );
         drop(writer); // terrain ends
-        restored.recv_timeout(Duration::from_secs(2)).expect("restored");
+        restored
+            .recv_timeout(Duration::from_secs(2))
+            .expect("restored");
         watching.join().unwrap();
     }
 }

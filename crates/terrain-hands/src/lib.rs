@@ -25,3 +25,16 @@ pub use source::{HandSource, ReplaySource};
 pub use state::{
     CalibrationError, CameraModel, FORGET_AFTER_MS, HandState, HandStateEstimator, TrackedHands,
 };
+
+use std::path::PathBuf;
+
+/// Where terrain keeps what the user saves: `$XDG_CONFIG_HOME/terrain`, or
+/// `~/.config/terrain`. An empty or relative `XDG_CONFIG_HOME` is ignored, as
+/// the spec says.
+pub fn config_dir() -> Option<PathBuf> {
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| Some(PathBuf::from(std::env::var_os("HOME")?).join(".config")))?;
+    Some(config.join("terrain"))
+}
