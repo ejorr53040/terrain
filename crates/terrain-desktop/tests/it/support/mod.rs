@@ -156,6 +156,17 @@ pub fn last_point(inputs: &[Action]) -> Option<Vec2> {
     })
 }
 
+/// Every place the pointer was sent, in order.
+pub fn points(inputs: &[Action]) -> Vec<Vec2> {
+    inputs
+        .iter()
+        .filter_map(|i| match i {
+            Action::PointTo(at) => Some(*at),
+            _ => None,
+        })
+        .collect()
+}
+
 /// Where the pointer was when each button input happened.
 pub fn point_at_each_button(inputs: &[Action]) -> Vec<(Action, Option<Vec2>)> {
     let mut at = None;

@@ -1,7 +1,7 @@
 //! The palm points: where the hand is in the reach is where the pointer
 //! is on the screen.
 
-use crate::support::{Fingers, Script, buttons, last_point};
+use crate::support::{Fingers, Script, buttons, last_point, points};
 use glam::{Vec2, Vec3};
 use terrain_desktop::{Action, Button};
 
@@ -74,4 +74,69 @@ fn a_brief_dropout_mid_drag_keeps_holding() {
         .hold(AHEAD + Vec3::new(0.05, 0.0, 0.0), Fingers::Pinch, 10)
         .run();
     assert_eq!(buttons(&inputs), vec![Action::Press(Button::Left)]);
+}
+
+#[test]
+fn a_hand_held_almost_still_keeps_the_pointer_still() {
+    // A still hand drifts a few millimetres to and fro, about twice a second.
+    let drift = Vec3::new(0.002, 0.001, 0.0);
+    let mut script = Script::default().hold(AHEAD, Fingers::Open, 20).sweep(
+        AHEAD,
+        AHEAD + drift,
+        Fingers::Open,
+        4,
+    );
+    for _ in 0..3 {
+        script = script
+            .sweep(AHEAD + drift, AHEAD - drift, Fingers::Open, 8)
+            .sweep(AHEAD - drift, AHEAD + drift, Fingers::Open, 8);
+    }
+    let shown = points(&script.run());
+    let settled = &shown[shown.len() - 30..];
+    let wandered = settled
+        .iter()
+        .map(|p| p.distance(settled[0]))
+        .fold(0.0, f32::max);
+    assert!(wandered < 0.002, "pointer wandered {wandered}");
+}
+
+#[test]
+fn a_pointer_let_go_by_a_gesture_glides_to_the_hand_instead_of_jumping() {
+    // A Vee scroll holds the pointer still while the hand moves; opening
+    // the hand ends the scroll and lets the pointer follow again.
+    let moved = AHEAD + Vec3::new(0.1, 0.0, 0.0);
+    let shown = points(
+        &Script::default()
+            .hold(AHEAD, Fingers::Open, 20)
+            .hold(AHEAD, Fingers::Vee, 10)
+            .sweep(AHEAD, moved, Fingers::Vee, 10)
+            .hold(moved, Fingers::Open, 20)
+            .run(),
+    );
+    let biggest_step = shown
+        .windows(2)
+        .map(|w| w[0].distance(w[1]))
+        .fold(0.0, f32::max);
+    assert!(biggest_step < 0.06, "pointer jumped {biggest_step}");
+    let at = *shown.last().unwrap();
+    assert!(at.x > 0.65, "pointer never reached the hand: {at}");
+}
+
+#[test]
+fn a_pointer_let_go_past_the_screens_edge_glides_there_too() {
+    let below = AHEAD + Vec3::new(0.0, -0.3, 0.0);
+    let shown = points(
+        &Script::default()
+            .hold(AHEAD, Fingers::Open, 20)
+            .hold(AHEAD, Fingers::Vee, 10)
+            .sweep(AHEAD, below, Fingers::Vee, 10)
+            .hold(below, Fingers::Open, 20)
+            .run(),
+    );
+    let biggest_step = shown
+        .windows(2)
+        .map(|w| w[0].distance(w[1]))
+        .fold(0.0, f32::max);
+    assert!(biggest_step < 0.15, "pointer jumped {biggest_step}");
+    assert_eq!(shown.last().unwrap().y, 1.0);
 }
