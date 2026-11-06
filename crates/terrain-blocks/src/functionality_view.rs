@@ -176,10 +176,7 @@ impl App {
                         .clicked()
                     {
                         match self.ws.new_capability(&s.name, "New capability") {
-                            Ok(index) => {
-                                self.renaming = Some((index, "New capability".into()));
-                                self.reload_systems();
-                            }
+                            Ok(index) => self.renaming = Some((index, "New capability".into())),
                             Err(e) => self.refused(e),
                         }
                     }
@@ -245,7 +242,7 @@ impl App {
                 let mut on = *shown;
                 if ui.checkbox(&mut on, name).changed() {
                     match self.ws.pin(name, on) {
-                        Ok(()) => self.reload_systems(),
+                        Ok(()) => {}
                         Err(e) => self.message = format!("couldn't save the sidecar: {e}"),
                     }
                 }
@@ -414,7 +411,7 @@ impl App {
         op: impl FnOnce(&mut terrain_blocks::Workspace) -> Result<(), MoveError>,
     ) {
         match op(&mut self.ws) {
-            Ok(()) => self.reload_systems(),
+            Ok(()) => {}
             Err(e) => self.refused(e),
         }
     }

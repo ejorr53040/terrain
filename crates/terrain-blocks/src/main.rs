@@ -43,6 +43,7 @@ fn main() -> eframe::Result {
                 View::Functionality
             };
             let mut app = App {
+                systems_at: ws.changes(),
                 ws,
                 systems,
                 view,
@@ -87,12 +88,16 @@ enum Check {
     Running,
     Pass,
     Fail,
+    /// cargo couldn't be run at all.
+    Error(String),
 }
 
 struct App {
     ws: Workspace,
-    /// The Functionality view's model, rebuilt after every change.
+    /// The Functionality view's model, rebuilt whenever the Workspace changes.
     systems: Vec<System>,
+    /// The Workspace's `changes()` that `systems` was built at.
+    systems_at: u64,
     view: View,
     /// The part of the canvas in view, per view.
     scenes: [Rect; 2],
@@ -120,14 +125,18 @@ struct App {
 
     message: String,
     check: Check,
-    check_rx: Option<mpsc::Receiver<bool>>,
+    check_rx: Option<mpsc::Receiver<std::io::Result<bool>>>,
     last_poll: Instant,
 }
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        if let Some(Ok(ok)) = self.check_rx.as_ref().map(|rx| rx.try_recv()) {
-            self.check = if ok { Check::Pass } else { Check::Fail };
+        if let Some(Ok(done)) = self.check_rx.as_ref().map(|rx| rx.try_recv()) {
+            self.check = match done {
+                Ok(true) => Check::Pass,
+                Ok(false) => Check::Fail,
+                Err(e) => Check::Error(format!("can't run cargo check: {e}")),
+            };
             self.check_rx = None;
         }
         if self.last_poll.elapsed() >= POLL {
@@ -135,13 +144,13 @@ impl eframe::App for App {
             match self.ws.refresh() {
                 Ok(changed) if !changed.is_empty() => {
                     self.selected = None;
-                    self.reload_systems();
                     self.start_check();
                 }
                 Ok(_) => {}
                 Err(e) => self.message = format!("refresh failed: {e}"),
             }
         }
+        self.sync_systems();
         // Keeps the poll and the check badge ticking while idle.
         ui.ctx().request_repaint_after(Duration::from_millis(250));
 
@@ -180,10 +189,11 @@ impl eframe::App for App {
                     );
                 }
                 ui.separator();
-                let (badge, color) = match self.check {
+                let (badge, color) = match &self.check {
                     Check::Running => ("⏳ checking", pal.dim),
                     Check::Pass => ("✔ cargo check", pal.ok),
                     Check::Fail => ("✖ cargo check", pal.err),
+                    Check::Error(why) => (why.as_str(), pal.err),
                 };
                 ui.label(
                     RichText::new(badge)
@@ -224,6 +234,10 @@ impl eframe::App for App {
                 });
             self.scenes[view as usize] = scene_rect;
         });
+        // A change made while drawing: draw again from the new model.
+        if self.sync_systems() {
+            ui.ctx().request_repaint();
+        }
     }
 }
 
@@ -237,15 +251,20 @@ impl App {
         ui.ctx().pointer_latest_pos().map(|p| to_local * p)
     }
 
-    fn reload_systems(&mut self) {
-        self.systems = self.ws.systems();
+    /// Rebuilds `systems` if the Workspace changed since; true if it did.
+    fn sync_systems(&mut self) -> bool {
+        let stale = self.ws.changes() != self.systems_at;
+        if stale {
+            self.systems = self.ws.systems();
+            self.systems_at = self.ws.changes();
+        }
+        stale
     }
 
     /// After a code move or undo: the files changed under every view.
     fn code_changed(&mut self, message: &str) {
         self.selected = None;
         self.message = message.into();
-        self.reload_systems();
         self.start_check();
     }
 
@@ -261,12 +280,16 @@ impl App {
         self.message = match e {
             MoveError::Stale(files) => {
                 // Pick up what changed so the next try works on the new text.
-                let _ = self.ws.refresh();
-                self.reload_systems();
-                format!(
-                    "refused: {} changed on disk; re-read, try again",
-                    files.join(", ")
-                )
+                match self.ws.refresh() {
+                    Ok(_) => format!(
+                        "refused: {} changed on disk; re-read, try again",
+                        files.join(", ")
+                    ),
+                    Err(e) => format!(
+                        "refused: {} changed on disk, and re-reading failed: {e}",
+                        files.join(", ")
+                    ),
+                }
             }
             MoveError::Invalid(why) => format!("refused: {why}"),
             MoveError::Io(e) => format!("failed: {e}"),
@@ -289,7 +312,7 @@ impl App {
         let root = self.ws.root().to_path_buf();
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(cargo_check(&root).unwrap_or(false));
+            let _ = tx.send(cargo_check(&root));
         });
         // Dropping an older receiver discards a check that is now out of date.
         self.check_rx = Some(rx);

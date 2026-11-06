@@ -27,6 +27,28 @@ pub struct Block {
     span: Range<usize>,
 }
 
+impl Block {
+    /// How the block is named: a file by its path, anything else "kind name",
+    /// such as "fn boot", as Capabilities refer to items.
+    pub fn label(&self) -> String {
+        if self.kind == "file" {
+            self.name.clone()
+        } else {
+            format!("{} {}", self.kind, self.name)
+        }
+    }
+
+    /// Whether it holds a stack of blocks.
+    pub fn is_container(&self) -> bool {
+        holds_blocks(self.kind)
+    }
+}
+
+/// Files, inline modules, `impl`s and `trait`s hold blocks.
+fn holds_blocks(kind: &str) -> bool {
+    matches!(kind, "file" | "impl" | "trait" | "mod")
+}
+
 /// Where a block is: its file's index, then its index in each stack down to it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Id(pub Vec<usize>);
@@ -58,6 +80,8 @@ pub struct Workspace {
     sidecar: Sidecar,
     /// Every crate in the workspace, re-read on refresh.
     manifests: Vec<systems::Manifest>,
+    /// Counts changes to the files or the sidecar, so views know to rebuild.
+    changes: u64,
 }
 
 type Undo = (Vec<(String, String)>, Option<(ItemRef, ItemRef)>);
@@ -102,6 +126,7 @@ impl Workspace {
             undo: Vec::new(),
             sidecar,
             manifests: Vec::new(),
+            changes: 0,
         };
         ws.refresh()?;
         Ok(ws)
@@ -122,10 +147,17 @@ impl Workspace {
         self.save_sidecar()
     }
 
-    fn save_sidecar(&self) -> io::Result<()> {
+    fn save_sidecar(&mut self) -> io::Result<()> {
         let text = ron::ser::to_string_pretty(&self.sidecar, Default::default())
             .map_err(io::Error::other)?;
+        self.changes += 1;
         fs::write(self.root.join(SIDECAR), text)
+    }
+
+    /// Goes up whenever the files or the sidecar change, through this
+    /// Workspace or on disk (seen at `refresh`).
+    pub fn changes(&self) -> u64 {
+        self.changes
     }
 
     /// Re-read the crate from disk. Returns the names of files added, changed or removed.
@@ -158,7 +190,11 @@ impl Workspace {
         }
         changed.sort();
         (self.files, self.texts) = (files, texts);
-        self.manifests = systems::read_manifests(&self.root)?;
+        let manifests = systems::read_manifests(&self.root)?;
+        if !changed.is_empty() || manifests != self.manifests {
+            self.changes += 1;
+        }
+        self.manifests = manifests;
         Ok(changed)
     }
 
@@ -168,9 +204,7 @@ impl Workspace {
         let mut id = vec![self.files.iter().position(|f| f.name == *file)?];
         let mut stack = &self.files[id[0]].children;
         for label in rest {
-            let i = stack
-                .iter()
-                .position(|b| format!("{} {}", b.kind, b.name) == *label)?;
+            let i = stack.iter().position(|b| b.label() == *label)?;
             id.push(i);
             stack = &stack[i].children;
         }
@@ -243,7 +277,7 @@ impl Workspace {
 
         // A top-level item landing at another file's top level is the same item to its Capability.
         let item = (block.0.len() == 2 && into.0.len() == 1 && from != to).then(|| {
-            let label = format!("{} {}", moving.kind, moving.name);
+            let label = moving.label();
             let at = |f: usize| ItemRef {
                 file: self.files[f].name.clone(),
                 label: label.clone(),
@@ -322,6 +356,7 @@ impl Workspace {
         fs::write(self.root.join(&self.files[file].name), &text)?;
         self.files[file] = parse_file(self.files[file].name.clone(), &text);
         self.texts[file] = text;
+        self.changes += 1;
         Ok(())
     }
 
@@ -411,10 +446,9 @@ fn stack(node: Node, text: &str) -> Vec<Block> {
         let Some((kind, name)) = describe(child, text) else {
             continue;
         };
-        let body = match kind {
-            "impl" | "trait" | "mod" => child.child_by_field_name("body"),
-            _ => None,
-        };
+        let body = holds_blocks(kind)
+            .then(|| child.child_by_field_name("body"))
+            .flatten();
         blocks.push(Block {
             kind,
             name,
