@@ -1,4 +1,4 @@
-//! The mirrored webcam preview in a corner of the window, toggled with `P`,
+//! The mirrored webcam preview in a corner of the window, toggled with `V`,
 //! with tracked hands (region and skeleton) drawn on it, and a debug
 //! overlay with the capture frame rate and tracking stats.
 
@@ -285,13 +285,8 @@ fn show_latest_frame(
     tracking.has_frame = true;
 }
 
-fn toggle_preview(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut requests: ResMut<crate::Requests>,
-    mut tracking: ResMut<LiveTracking>,
-) {
-    // V, not P: P stamps a template.
-    if keys.just_pressed(KeyCode::KeyV) || std::mem::take(&mut requests.preview) {
+fn toggle_preview(mut requests: ResMut<crate::Requests>, mut tracking: ResMut<LiveTracking>) {
+    if std::mem::take(&mut requests.preview) {
         tracking.wanted = !tracking.wanted;
     }
 }

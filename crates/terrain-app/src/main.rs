@@ -12,12 +12,10 @@
 //! `~/.config/terrain/templates`. `O` shows the overlay: tools and the
 //! template library with search.
 
-mod overlay;
-
 use bevy::prelude::*;
 use terrain_app::{
     Arena, CUBE_STARTS, CursorPlugin, GrabPlugin, Grabbable, Library, Material, Materials,
-    PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool,
+    OverlayPlugin, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool,
 };
 use terrain_hands::{CameraModel, HandSource, LiveTracker, ReplaySource, capture};
 
@@ -72,11 +70,7 @@ fn main() -> AppExit {
         .insert_resource(Library::load(
             terrain_hands::config_dir().map(|dir| dir.join("templates")),
         ))
-        .add_plugins((
-            CursorPlugin,
-            PreviewPlugin::new(tracking),
-            overlay::OverlayPlugin,
-        ))
+        .add_plugins((CursorPlugin, PreviewPlugin::new(tracking), OverlayPlugin))
         .add_systems(Startup, spawn_scene)
         .add_systems(
             Update,
@@ -178,8 +172,9 @@ fn show_tool(
         n => format!("\n{n} template file(s) skipped, see log"),
     };
     let line = format!(
-        "{:?} tool  (1-4 pick, [ ] adjust){value}{material}{template}{skipped}",
-        *tool
+        "{:?} tool  (1-{} pick, [ ] adjust){value}{material}{template}{skipped}",
+        *tool,
+        Tool::ALL.len()
     );
     for mut text in &mut readout {
         if text.0 != line {
