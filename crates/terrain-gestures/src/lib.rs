@@ -135,7 +135,8 @@ struct Active {
     state: State,
     /// When the state was entered (ms).
     entered_ms: u64,
-    /// Where the pointer was when the gesture started.
+    /// Where the hand pointed when the gesture started: what its moves are
+    /// measured from.
     at: Vec2,
     /// Where the pointer has been lately (ms, screen), oldest first.
     // ponytail: kept for TRAIL_MS, so a guard window longer than that sees only TRAIL_MS.
@@ -144,6 +145,26 @@ struct Active {
 
 /// How much of the pointer's path a gesture remembers (ms).
 const TRAIL_MS: u64 = 1000;
+
+/// How long a pointer a gesture held still takes to glide back to the hand
+/// once released (ms), rather than jumping there in one frame.
+const GLIDE_MS: u64 = 150;
+/// How far the hand must move the pointer (screen widths, heights) before
+/// it follows: a hand held still wanders this much, and it drags the
+/// pointer along only by the part beyond it.
+// ponytail: one radius in normalized units, so it's shorter across a wide screen's height; scale by aspect if that shows.
+const DEAD_ZONE: f32 = 0.005;
+
+/// What the pointer is doing.
+#[derive(Clone, Copy, Debug)]
+enum Shown {
+    /// Held still by a gesture.
+    Frozen,
+    /// Gliding from here back to the hand, since then (ms).
+    Gliding { from: Vec2, since: u64 },
+    /// Following the hand, `DEAD_ZONE` behind it at most.
+    Following,
+}
 
 /// Runs a gesture file on the hand with control.
 pub struct Engine {
@@ -158,6 +179,9 @@ pub struct Engine {
     active: Option<Active>,
     /// How far along each of the file's Spreads is.
     spreads: Vec<Arming>,
+    /// Where the pointer was last sent and what it's doing, if it's been
+    /// sent since control was taken.
+    shown: Option<(Vec2, Shown)>,
 }
 
 /// How far along a Spread is.
@@ -199,6 +223,7 @@ impl Engine {
             outside_since: None,
             pose: (Pose::Open, 0),
             active: None,
+            shown: None,
         }
     }
 
@@ -342,11 +367,11 @@ impl Engine {
                 actions.push(Action::Scroll(by));
             }
         }
-        let pointer = match &self.active {
-            Some(a) if a.state.pointer == Pointer::Frozen => a.at,
-            _ => point,
-        };
-        actions.push(Action::PointTo(pointer));
+        let frozen = self
+            .active
+            .as_ref()
+            .is_some_and(|a| a.state.pointer == Pointer::Frozen);
+        actions.push(Action::PointTo(self.show(point, frozen, t_ms)));
         actions
     }
 
@@ -354,6 +379,7 @@ impl Engine {
     /// lost or hands stop arriving at all.
     pub fn let_go(&mut self) -> Vec<Action> {
         self.control = Control::Free;
+        self.shown = None;
         self.outside_since = None;
         let held = self
             .active
@@ -361,6 +387,43 @@ impl Engine {
             .map(|a| a.state.holds)
             .unwrap_or_default();
         held.iter().rev().map(|&b| Action::Release(b)).collect()
+    }
+
+    /// Where to send the pointer, the hand pointing at `point`: held where
+    /// it is while a gesture freezes it, so a click lands where it was
+    /// shown, else following the hand, gliding back to it after a freeze.
+    /// An axis the hand pins to the screen's edge goes there, so edges and
+    /// corners can still be reached.
+    fn show(&mut self, point: Vec2, frozen: bool, t_ms: u64) -> Vec2 {
+        let (at, shown) = match (frozen, self.shown) {
+            (_, None) => (point, Shown::Following),
+            (true, Some((at, _))) => (at, Shown::Frozen),
+            (false, Some((at, Shown::Frozen))) => (
+                at,
+                Shown::Gliding {
+                    from: at,
+                    since: t_ms,
+                },
+            ),
+            (false, Some((_, Shown::Gliding { from, since })))
+                if t_ms.saturating_sub(since) < GLIDE_MS =>
+            {
+                let k = t_ms.saturating_sub(since) as f32 / GLIDE_MS as f32;
+                (from.lerp(point, k), Shown::Gliding { from, since })
+            }
+            (false, Some((at, _))) => {
+                let off = point - at;
+                let at = if off.length() > DEAD_ZONE {
+                    point - off.normalize() * DEAD_ZONE
+                } else {
+                    at
+                };
+                let edge = point.cmpeq(Vec2::ZERO) | point.cmpeq(Vec2::ONE);
+                (Vec2::select(edge, point, at), Shown::Following)
+            }
+        };
+        self.shown = Some((at, shown));
+        at
     }
 
     /// Takes the gesture under way's first enabled transition, or starts a
