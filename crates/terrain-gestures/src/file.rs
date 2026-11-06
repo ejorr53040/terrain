@@ -11,7 +11,7 @@ use serde::Deserialize;
 use crate::{Action, Button, Pose};
 
 /// The gestures compiled in: today's desktop control.
-pub const DEFAULT: &str = include_str!("default.ron");
+const DEFAULT: &str = include_str!("default.ron");
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct GestureFile {
@@ -70,10 +70,27 @@ impl GestureFile {
     }
 
     /// What the types can't say: every state a gesture names is one of its
-    /// own, and a move waits out every flick beside it, since the first
-    /// enabled transition is taken and a flick starts out as a move.
+    /// own; a move waits out every flick beside it, since the first enabled
+    /// transition is taken and a flick starts out as a move; and a state's
+    /// entry actions release every button they press (holds are released on
+    /// leaving), so no press is left without a release.
     fn check(&self) -> Result<(), String> {
         for gesture in &self.gestures {
+            for (name, state) in &gesture.states {
+                let mut down = Vec::new();
+                for action in &state.enter {
+                    match *action {
+                        Action::Press(b) => down.push(b),
+                        Action::Release(b) => down.retain(|&d| d != b),
+                        _ => {}
+                    }
+                }
+                if let Some(b) = down.first() {
+                    return Err(format!(
+                        "state {name:?} presses {b:?} on entry and never releases it"
+                    ));
+                }
+            }
             let named = std::iter::once(&gesture.start).chain(
                 gesture
                     .states
@@ -189,14 +206,14 @@ pub enum Guard {
     Pose(Pose, u64),
     /// At least this long (ms) in the state.
     After(u64),
-    /// The pointer has moved more than this far (screen widths) from where
-    /// the gesture started.
+    /// The pointer has moved more than this far (in screens: a width across,
+    /// a height down) from where the gesture started.
     Moved(f32),
-    /// The pointer has been more than this far (screen widths) from where
+    /// The pointer has been more than this far (in screens) from where
     /// the gesture started for at least this long (ms): long enough that
     /// a flick would already have fired.
     MovedFor(f32, u64),
-    /// The pointer covered more than this far (screen widths) in this
+    /// The pointer covered more than this far (in screens) in this
     /// direction, more along it than across, within the last this long
     /// (ms), however long the hand was held first: a flick, not a drag.
     Flicked(Direction, f32, u64),
@@ -251,5 +268,14 @@ mod tests {
         assert!(state(100).is_ok());
         let err = state(50).unwrap_err();
         assert!(err.contains("MovedFor waits 50 ms"), "{err}");
+    }
+
+    #[test]
+    fn a_state_must_release_what_it_presses_on_entry() {
+        let err = pinch("\"pinch\": (enter: [Press(Alt), Press(H), Release(H)])").unwrap_err();
+        assert!(err.contains("presses Alt"), "{err}");
+        assert!(
+            pinch("\"pinch\": (enter: [Press(Alt), Press(H), Release(H), Release(Alt)])").is_ok()
+        );
     }
 }

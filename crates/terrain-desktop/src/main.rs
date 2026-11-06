@@ -2,8 +2,7 @@
 //!
 //! Raise a hand, open, palm to the camera, and hold it a moment to take
 //! control; lower it back to the keyboard to give control up. The palm
-//! points; pinch thumb and index to click and drag; make a fist to drag the
-//! window under the pointer (Super + drag).
+//! points; the gestures are the built-in gesture file's.
 //!
 //! `--camera <device>` picks the webcam (default `/dev/video0`); the camera
 //! calibration the 3D app saves is used if there is one. `--probe` skips
@@ -65,14 +64,7 @@ fn main() {
     }
 
     let device = option("--camera").unwrap_or_else(|| capture::DEFAULT_DEVICE.into());
-    let camera = CameraModel::saved_path()
-        .and_then(|path| {
-            CameraModel::load(&path).unwrap_or_else(|e| {
-                eprintln!("ignoring the calibration in {}: {e}", path.display());
-                None
-            })
-        })
-        .unwrap_or_default();
+    let camera = CameraModel::saved();
     let tracker = LiveTracker::start(&device).unwrap_or_else(|e| {
         eprintln!("can't start hand tracking on {device}: {e}");
         std::process::exit(1);
@@ -155,7 +147,6 @@ fn status_file() -> Option<File> {
     File::create(dir.join("status")).ok()
 }
 
-/// Appends `line` to the status file.
 fn show(file: &mut Option<File>, line: &str) {
     if let Some(f) = file {
         let _ = writeln!(f, "{line}");

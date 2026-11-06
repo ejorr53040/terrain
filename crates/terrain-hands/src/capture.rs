@@ -181,11 +181,6 @@ impl Camera {
         })
     }
 
-    /// The newest frame since the last call, if any. Never blocks.
-    pub fn latest(&self) -> Option<CameraFrame> {
-        self.slot.shared.lock().unwrap().latest.take()
-    }
-
     /// The next new frame, waiting up to `timeout` for one. `None` on
     /// timeout or once capture has stopped.
     pub fn wait_next(&self, timeout: Duration) -> Option<CameraFrame> {

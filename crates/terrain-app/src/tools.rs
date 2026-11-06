@@ -33,7 +33,7 @@ pub(crate) fn use_tools(
     selection: Res<Selection>,
     mut shapes: Query<&mut Shape>,
 ) {
-    let digits = [
+    let digits: [KeyCode; Tool::ALL.len()] = [
         KeyCode::Digit1,
         KeyCode::Digit2,
         KeyCode::Digit3,

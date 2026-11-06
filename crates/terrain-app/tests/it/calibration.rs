@@ -2,11 +2,6 @@ use crate::support::*;
 use bevy::prelude::*;
 use terrain_hands::HandFrame;
 
-/// Where calibration asks for the hand: 50 cm straight in front of the camera.
-const CALIBRATION_SPOT: Vec3 = Vec3::new(0.0, 0.0, 0.5);
-/// Frames covering calibration's 3 s countdown and 1 s of measuring.
-const CALIBRATING: usize = 130;
-
 #[test]
 fn after_calibrating_depth_is_true_to_scale_on_a_narrower_camera() {
     let camera = TestCamera {

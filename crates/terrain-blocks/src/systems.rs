@@ -363,7 +363,6 @@ impl Workspace {
         items
     }
 
-    /// The System an existing item belongs to.
     fn system_of(&self, item: &ItemRef) -> Result<String, MoveError> {
         let system = self
             .owner(&item.file)

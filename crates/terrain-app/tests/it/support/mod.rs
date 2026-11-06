@@ -17,6 +17,11 @@ pub const FRAME_MS: u64 = 33;
 /// Frames to hold a pose for the smoothed hand to settle on it.
 pub const SETTLE: usize = 30;
 
+/// Where calibration asks for the hand: straight in front of the camera.
+pub const CALIBRATION_SPOT: Vec3 = Vec3::new(0.0, 0.0, terrain_app::CALIBRATION_DISTANCE_M);
+/// Frames covering calibration's 3 s countdown and 1 s of measuring.
+pub const CALIBRATING: usize = 130;
+
 /// One frame of `poses`, seen by the default camera.
 pub fn frame(poses: &[Pose]) -> HandFrame {
     TestCamera::default().frame(poses)

@@ -8,7 +8,7 @@
 mod file;
 
 pub use file::{
-    DEFAULT, Direction, Gesture, GestureFile, Guard, Pointer, Scroll, Spread, State, Transition,
+    Direction, Gesture, GestureFile, Guard, Pointer, Scroll, Spread, State, Transition,
 };
 
 use std::collections::VecDeque;
@@ -333,7 +333,7 @@ impl Engine {
             self.pose = (pose, t_ms);
         }
         let point = to_screen(hand.in_view);
-        let mut actions = self.step(hand, point, t_ms);
+        let mut actions = self.step(point, t_ms);
         if let Some(a) = &self.active
             && let Some(scroll) = a.state.scroll
         {
@@ -365,14 +365,14 @@ impl Engine {
 
     /// Takes the gesture under way's first enabled transition, or starts a
     /// gesture whose Pose has settled.
-    fn step(&mut self, hand: &Hand, point: Vec2, t_ms: u64) -> Vec<Action> {
+    fn step(&mut self, point: Vec2, t_ms: u64) -> Vec<Action> {
         let mut actions = Vec::new();
         if let Some(active) = &mut self.active {
             active.trail.push_back((t_ms, point));
             while active
                 .trail
                 .front()
-                .is_some_and(|&(t, _)| t_ms - t > TRAIL_MS)
+                .is_some_and(|&(t, _)| t_ms.saturating_sub(t) > TRAIL_MS)
             {
                 active.trail.pop_front();
             }
@@ -382,7 +382,7 @@ impl Engine {
                 .state
                 .on
                 .iter()
-                .find(|tr| tr.when.iter().all(|&g| self.holds(g, active, hand, t_ms)))
+                .find(|tr| tr.when.iter().all(|&g| self.holds(g, active, point, t_ms)))
                 .map(|tr| tr.to.clone());
             if let Some(to) = to {
                 actions.extend(self.enter(&to, t_ms));
@@ -411,34 +411,36 @@ impl Engine {
     }
 
     /// Whether `guard` holds for the gesture under way.
-    fn holds(&self, guard: Guard, active: &Active, hand: &Hand, t_ms: u64) -> bool {
+    /// `point` is where the hand points now.
+    fn holds(&self, guard: Guard, active: &Active, point: Vec2, t_ms: u64) -> bool {
         match guard {
             Guard::Pose(pose, ms) => self.pose.0 == pose && t_ms.saturating_sub(self.pose.1) >= ms,
             Guard::After(ms) => t_ms.saturating_sub(active.entered_ms) >= ms,
-            Guard::Moved(by) => moved(active, hand).length() > by,
+            Guard::Moved(by) => (point - active.at).length() > by,
             Guard::MovedFor(by, ms) => {
                 // Where the pointer was `ms` ago: the newest point at least that old.
-                let then = active.trail.iter().rev().find(|&&(t, _)| t_ms - t >= ms);
-                then.is_some_and(|&(_, p)| (p - active.at).length() > by)
-                    && moved(active, hand).length() > by
-            }
-            Guard::Flicked(direction, by, ms) => {
-                let now = to_screen(hand.in_view);
-                active
+                let then = active
                     .trail
                     .iter()
-                    .filter(|&&(t, _)| t_ms - t <= ms)
-                    .any(|&(_, p)| {
-                        let moved = now - p;
-                        let (along, across) = match direction {
-                            Direction::Left => (-moved.x, moved.y),
-                            Direction::Right => (moved.x, moved.y),
-                            Direction::Up => (-moved.y, moved.x),
-                            Direction::Down => (moved.y, moved.x),
-                        };
-                        along > by && along > across.abs()
-                    })
+                    .rev()
+                    .find(|&&(t, _)| t_ms.saturating_sub(t) >= ms);
+                then.is_some_and(|&(_, p)| (p - active.at).length() > by)
+                    && (point - active.at).length() > by
             }
+            Guard::Flicked(direction, by, ms) => active
+                .trail
+                .iter()
+                .filter(|&&(t, _)| t_ms.saturating_sub(t) <= ms)
+                .any(|&(_, p)| {
+                    let moved = point - p;
+                    let (along, across) = match direction {
+                        Direction::Left => (-moved.x, moved.y),
+                        Direction::Right => (moved.x, moved.y),
+                        Direction::Up => (-moved.y, moved.x),
+                        Direction::Down => (moved.y, moved.x),
+                    };
+                    along > by && along > across.abs()
+                }),
         }
     }
 
@@ -489,12 +491,6 @@ impl Engine {
             None => Control::Free,
         };
     }
-}
-
-/// How far the pointer has moved since the gesture started (screen
-/// widths, x right, y down).
-fn moved(active: &Active, hand: &Hand) -> Vec2 {
-    to_screen(hand.in_view) - active.at
 }
 
 fn in_reach(in_view: Vec2) -> bool {

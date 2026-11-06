@@ -4,12 +4,12 @@
 //! or from a recorded fixture with `--replay <fixture.json>` (looped; the
 //! webcam then only feeds the preview).
 //!
-//! `C` calibrates the camera; the result is kept in
-//! `~/.config/terrain/calibration.json` and loaded at start. `N` adds a box
+//! `C` calibrates the camera; the result is kept in `calibration.json` in
+//! terrain's config directory (`$XDG_CONFIG_HOME/terrain`, else
+//! `~/.config/terrain`) and loaded at start. `N` adds a box
 //! at the cursor, `Delete` removes the outlined shape, `D` copies it and `R`
 //! puts the scene back. `Tab` picks a template, `P` stamps it at the cursor
-//! and `T` saves the selection's build as one, in
-//! `~/.config/terrain/templates`. `O` shows the overlay: tools and the
+//! and `T` saves the selection's build as one, in `templates` beside it. `O` shows the overlay: tools and the
 //! template library with search.
 
 use bevy::prelude::*;
@@ -49,13 +49,9 @@ fn main() -> AppExit {
     if replay.is_none()
         && let Some(path) = CameraModel::saved_path()
     {
-        match CameraModel::load(&path) {
-            Ok(Some(camera)) => grab = grab.with_camera(camera),
-            Ok(None) => {}
-            // Logging isn't up yet.
-            Err(e) => eprintln!("ignoring the calibration in {}: {e}", path.display()),
-        }
-        grab = grab.saving_calibration_to(path);
+        grab = grab
+            .with_camera(CameraModel::saved())
+            .saving_calibration_to(path);
     }
 
     App::new()

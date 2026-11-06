@@ -17,7 +17,6 @@ pub struct Requests {
     pub preview: bool,
 }
 
-/// Each request's key: `T`, `P`, `R`, `C` and `V`.
 pub(crate) fn press_keys(keys: Res<ButtonInput<KeyCode>>, mut requests: ResMut<Requests>) {
     let r = &mut *requests;
     for (key, request) in [

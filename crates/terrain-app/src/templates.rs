@@ -9,7 +9,8 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Arena, Grabbable, Material, Materials, Placed, Requests, Selection, Shape, screen::Aim,
+    Arena, CUBE_SIZE, Grabbable, Material, Materials, Placed, Requests, Selection, Shape,
+    screen::Aim,
 };
 
 /// A named build: shapes on grid cells, loose (not glued) once placed.
@@ -75,11 +76,24 @@ impl Library {
         let Some(dir) = &library.dir else {
             return library;
         };
-        let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|entry| entry.path())
+        let entries = match std::fs::read_dir(dir) {
+            Ok(entries) => entries,
+            // No templates saved yet.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return library,
+            Err(e) => {
+                warn!("can't read templates from {}: {e}", dir.display());
+                library.errors.push(format!("{}: {e}", dir.display()));
+                return library;
+            }
+        };
+        let mut files: Vec<PathBuf> = entries
+            .filter_map(|entry| match entry {
+                Ok(entry) => Some(entry.path()),
+                Err(e) => {
+                    library.errors.push(format!("{}: {e}", dir.display()));
+                    None
+                }
+            })
             .filter(|p| p.extension().is_some_and(|e| e == "ron"))
             .collect();
         files.sort();
@@ -130,7 +144,7 @@ impl Library {
 fn built_in() -> Vec<Template> {
     let cube = |x, y, z| Part {
         cell: (x, y, z),
-        size: (0.15, 0.15, 0.15),
+        size: Vec3::splat(CUBE_SIZE).into(),
         roundness: 0.0,
         taper: 0.0,
         rotation: no_turn(),
@@ -171,6 +185,7 @@ fn built_in() -> Vec<Template> {
 }
 
 /// `T` (or its request), `Tab` and `P` (or its request).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn use_templates(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,

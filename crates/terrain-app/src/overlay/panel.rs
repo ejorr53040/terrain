@@ -4,7 +4,7 @@
 
 use crate::{
     Arena, Library, Material, Materials, OverlayArea, OverlayOpen, OverlayPointer, PhysicsSettings,
-    Requests, Selection, Shape, Tool,
+    Requests, Selection, Shape, Tool, grab::STRETCH_MIN,
 };
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -122,7 +122,7 @@ fn show(
                         let longest = arena.longest();
                         for (axis, name) in ["width", "height", "depth"].iter().enumerate() {
                             ui.add(
-                                egui::Slider::new(&mut edited.size[axis], 0.03..=longest)
+                                egui::Slider::new(&mut edited.size[axis], STRETCH_MIN..=longest)
                                     .suffix(" m")
                                     .text(*name),
                             );

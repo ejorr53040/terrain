@@ -41,7 +41,11 @@ impl App {
                     self.drop(dragging.clone(), into, index);
                 }
             }
-            let label = self.ws.block(&dragging).map(Block::label).unwrap_or_default();
+            let label = self
+                .ws
+                .block(&dragging)
+                .map(Block::label)
+                .unwrap_or_default();
             ui.painter().text(
                 p + vec2(14.0, 0.0),
                 egui::Align2::LEFT_CENTER,
@@ -61,7 +65,6 @@ impl App {
         }
     }
 
-    /// Draws `b` and its stack; returns its rect.
     fn block(&mut self, ui: &mut egui::Ui, b: &Block, id: Id, dropped: &mut Option<Id>) -> Rect {
         let pal = look::palette(ui);
         let (fill, edge) = look::kind_colors(b.kind, &pal);

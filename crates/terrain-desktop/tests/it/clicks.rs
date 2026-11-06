@@ -75,7 +75,7 @@ fn a_pinch_held_still_then_moved_drags_instead_of_right_clicking() {
 }
 
 #[test]
-fn a_pinch_held_still_right_clicks_only_once_it_opens() {
+fn a_long_press_lost_with_its_hand_never_clicks() {
     let lost = Script::default()
         .hold(AHEAD, Fingers::Open, 20)
         .hold(AHEAD, Fingers::Pinch, 40)

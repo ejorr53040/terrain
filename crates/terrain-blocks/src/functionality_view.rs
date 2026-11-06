@@ -145,7 +145,6 @@ impl App {
         }
     }
 
-    /// Draws a System; returns its rect.
     fn system_block(&mut self, ui: &mut egui::Ui, s: &System, pos: Pos2, hits: &mut Hits) -> Rect {
         let pal = look::palette(ui);
         let inner = look::block(pal.surface, pal.border_strong, 18).show(ui, |ui| {

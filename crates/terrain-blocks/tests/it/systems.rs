@@ -345,7 +345,11 @@ fn every_change_to_the_sidecar_or_the_files_counts_and_an_idle_refresh_does_not(
 
     let at = ws.changes();
     let lib = dir.path().join("crates/fleet-proto/src/lib.rs");
-    fs::write(&lib, fs::read_to_string(&lib).unwrap() + "\npub fn added() {}\n").unwrap();
+    fs::write(
+        &lib,
+        fs::read_to_string(&lib).unwrap() + "\npub fn added() {}\n",
+    )
+    .unwrap();
     ws.refresh().unwrap();
     assert!(ws.changes() > at, "a file changed on disk counts");
 }

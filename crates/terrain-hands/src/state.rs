@@ -110,6 +110,20 @@ impl CameraModel {
         Some(crate::config_dir()?.join("calibration.json"))
     }
 
+    /// The saved calibration, or the default camera if there's none. An
+    /// unusable one is reported and ignored.
+    pub fn saved() -> Self {
+        let Some(path) = Self::saved_path() else {
+            return Self::default();
+        };
+        Self::load(&path)
+            .unwrap_or_else(|e| {
+                eprintln!("ignoring the calibration in {}: {e}", path.display());
+                None
+            })
+            .unwrap_or_default()
+    }
+
     /// The camera saved at `path`: `Ok(None)` if there's no file, an error
     /// if it can't be read or isn't plausible.
     pub fn load(path: &Path) -> io::Result<Option<Self>> {
@@ -134,7 +148,7 @@ impl CameraModel {
 
     /// Whether this could be a real webcam: a field of view webcams have and
     /// a usable tilt. Saved calibrations are checked with it when loaded.
-    pub fn plausible(&self) -> bool {
+    fn plausible(&self) -> bool {
         CALIBRATION_FOV_RANGE.contains(&self.hfov_deg)
             && self.aspect.is_finite()
             && self.aspect > 0.0

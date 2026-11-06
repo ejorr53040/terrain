@@ -360,7 +360,6 @@ impl Workspace {
         Ok(())
     }
 
-    /// The crate directory.
     pub fn root(&self) -> &Path {
         &self.root
     }

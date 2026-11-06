@@ -66,7 +66,7 @@ pub(crate) struct Second {
 }
 
 /// The shortest a stretch makes a side, in meters. The longest is set by the Arena.
-const STRETCH_MIN: f32 = 0.03;
+pub(crate) const STRETCH_MIN: f32 = 0.03;
 
 impl Held {
     /// Carries on from where the entity is now, measuring `hand`'s motion from here.

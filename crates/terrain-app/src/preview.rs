@@ -149,8 +149,8 @@ struct Latency {
 }
 
 impl Latency {
-    /// Frames the median is taken over: a second at 30 fps.
-    const WINDOW: usize = 30;
+    /// Frames the median is taken over: a second's worth.
+    const WINDOW: usize = capture::FPS as usize;
 
     fn record(&mut self, latency: Duration) {
         if self.recent.len() == Self::WINDOW {

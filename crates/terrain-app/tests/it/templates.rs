@@ -182,7 +182,7 @@ fn search_matches_part_of_a_name_or_tag_ignoring_case() {
 }
 
 #[test]
-fn requests_save_and_stamp_like_the_keys() {
+fn a_requested_stamp_places_the_template() {
     let mut h = Harness::with_cubes(Vec::new(), &[]);
     pick(&mut h, "line");
     h.run(1);

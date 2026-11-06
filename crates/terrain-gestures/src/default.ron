@@ -4,7 +4,8 @@
 // right-clicks. A fist that moves or holds still drags the window under the
 // pointer (Super + left button, the window manager's window drag). A Vee
 // scrolls, faster the further the hand moves from where the Vee began. Two
-// open hands brought together, then spread apart quickly, toggle full screen.
+// open hands brought together, then spread apart quickly, toggle full screen;
+// two Vees, dictation.
 (
     gestures: [
         (

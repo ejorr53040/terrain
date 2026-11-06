@@ -229,7 +229,7 @@ impl Plugin for GrabPlugin {
 pub(crate) struct Hands {
     source: Mutex<Box<dyn HandSource>>,
     estimator: HandStateEstimator,
-    /// The frame that arrived this update, as the tracker saw it.
+    /// The frame that arrived this update, unsmoothed.
     raw: Option<HandFrame>,
     /// Hands from a frame that arrived this update, not yet acted on.
     fresh: Option<TrackedHands>,
