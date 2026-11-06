@@ -13,11 +13,34 @@ use crate::{Action, Button, Pose};
 /// The gestures compiled in: today's desktop control.
 const DEFAULT: &str = include_str!("default.ron");
 
+/// Only a file that passes `check` deserializes, so the engine never meets
+/// an unchecked one.
 #[derive(Clone, Debug, Deserialize)]
+#[serde(try_from = "Unchecked")]
 pub struct GestureFile {
     pub gestures: Vec<Gesture>,
-    #[serde(default)]
     pub spreads: Vec<Spread>,
+}
+
+/// A gesture file as written, before its checks.
+#[derive(Deserialize)]
+struct Unchecked {
+    gestures: Vec<Gesture>,
+    #[serde(default)]
+    spreads: Vec<Spread>,
+}
+
+impl TryFrom<Unchecked> for GestureFile {
+    type Error = String;
+
+    fn try_from(file: Unchecked) -> Result<Self, String> {
+        let file = GestureFile {
+            gestures: file.gestures,
+            spreads: file.spreads,
+        };
+        file.check()?;
+        Ok(file)
+    }
 }
 
 /// A Spread: two hands brought together, then spread apart quickly.
@@ -64,9 +87,7 @@ fn keys_only<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Button>, D::E
 impl GestureFile {
     /// The gesture file in `text`, once it passes its checks.
     pub fn parse(text: &str) -> Result<Self, String> {
-        let file: Self = ron::from_str(text).map_err(|e| e.to_string())?;
-        file.check()?;
-        Ok(file)
+        ron::from_str(text).map_err(|e| e.to_string())
     }
 
     /// What the types can't say: every state a gesture names is one of its
