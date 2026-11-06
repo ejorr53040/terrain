@@ -62,8 +62,53 @@ fn keys_only<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Button>, D::E
 }
 
 impl GestureFile {
-    pub fn parse(text: &str) -> Result<Self, ron::error::SpannedError> {
-        ron::from_str(text)
+    /// The gesture file in `text`, once it passes its checks.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let file: Self = ron::from_str(text).map_err(|e| e.to_string())?;
+        file.check()?;
+        Ok(file)
+    }
+
+    /// What the types can't say: every state a gesture names is one of its
+    /// own, and a move waits out every flick beside it, since the first
+    /// enabled transition is taken and a flick starts out as a move.
+    fn check(&self) -> Result<(), String> {
+        for gesture in &self.gestures {
+            let named = std::iter::once(&gesture.start).chain(
+                gesture
+                    .states
+                    .values()
+                    .flat_map(|s| s.on.iter().map(|t| &t.to)),
+            );
+            for name in named {
+                if !gesture.states.contains_key(name) {
+                    return Err(format!(
+                        "the {:?} gesture has no state {name:?}",
+                        gesture.pose
+                    ));
+                }
+            }
+            for (name, state) in &gesture.states {
+                let guards = || state.on.iter().flat_map(|t| &t.when);
+                let flick_ms = guards()
+                    .filter_map(|g| match g {
+                        Guard::Flicked(_, _, ms) => Some(*ms),
+                        _ => None,
+                    })
+                    .max()
+                    .unwrap_or(0);
+                for guard in guards() {
+                    if let Guard::MovedFor(_, ms) = guard
+                        && *ms < flick_ms
+                    {
+                        return Err(format!(
+                            "state {name:?}: MovedFor waits {ms} ms, less than a Flicked's {flick_ms} ms"
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// The compiled-in gestures.
@@ -169,7 +214,7 @@ pub enum Direction {
 mod tests {
     use super::*;
 
-    fn with_keys(keys: &str) -> Result<GestureFile, ron::error::SpannedError> {
+    fn with_keys(keys: &str) -> Result<GestureFile, String> {
         GestureFile::parse(&format!(
             "(gestures: [], spreads: [(poses: [Open], together: 0.2, held_ms: 150, \
              near: 0.35, apart: 0.32, within_ms: 450, parting_ms: 250, keys: {keys})])"
@@ -179,7 +224,32 @@ mod tests {
     #[test]
     fn a_spread_can_send_keys_but_never_click() {
         assert!(with_keys("[Super, F]").is_ok());
-        let err = with_keys("[Left]").unwrap_err().to_string();
+        let err = with_keys("[Left]").unwrap_err();
         assert!(err.contains("mouse button Left"), "{err}");
+    }
+
+    fn pinch(states: &str) -> Result<GestureFile, String> {
+        GestureFile::parse(&format!(
+            "(gestures: [(pose: Pinch, settle_ms: 0, start: \"pinch\", states: {{{states}}})])"
+        ))
+    }
+
+    #[test]
+    fn a_gesture_can_only_go_to_its_own_states() {
+        let err = pinch("\"pinch\": (on: [(when: [After(10)], to: \"tap\")])").unwrap_err();
+        assert!(err.contains("no state \"tap\""), "{err}");
+    }
+
+    #[test]
+    fn a_move_must_wait_out_the_flicks_beside_it() {
+        let state = |moved_ms| {
+            pinch(&format!(
+                "\"pinch\": (on: [(when: [Flicked(Left, 0.1, 100)], to: \"done\"), \
+                 (when: [MovedFor(0.02, {moved_ms})], to: \"done\")]), \"done\": ()"
+            ))
+        };
+        assert!(state(100).is_ok());
+        let err = state(50).unwrap_err();
+        assert!(err.contains("MovedFor waits 50 ms"), "{err}");
     }
 }

@@ -4,7 +4,11 @@ use terrain_hands::CameraModel;
 fn a_saved_camera_loads_back_and_a_bad_one_is_an_error() {
     let dir = std::env::temp_dir().join(format!("terrain-saved-camera-{}", std::process::id()));
     let path = dir.join("nested").join("calibration.json");
-    assert_eq!(CameraModel::load(&path).unwrap(), None, "no file is no calibration");
+    assert_eq!(
+        CameraModel::load(&path).unwrap(),
+        None,
+        "no file is no calibration"
+    );
 
     let camera = CameraModel {
         hfov_deg: 70.0,

@@ -26,7 +26,7 @@
                         (when: [Flicked(Down, 0.15, 100)], to: "workspace_down"),
                         (when: [Pose(Open, 30)], to: "tap"),
                         (when: [Pose(Fist, 30)], to: "fist_forming"),
-                        // A move waits out the flick first: keep MovedFor()'s ms equal to Flicked()'s.
+                        // A move waits out the flick first.
                         (when: [MovedFor(0.02, 100)], to: "drag"),
                         (when: [After(600)], to: "long_press"),
                     ],
@@ -96,7 +96,7 @@
                         (when: [Flicked(Up, 0.15, 100)], to: "pane_up"),
                         (when: [Flicked(Down, 0.15, 100)], to: "pane_down"),
                         (when: [Pose(Open, 30)], to: "dropped"),
-                        // A move waits out the flick first: keep MovedFor()'s ms equal to Flicked()'s.
+                        // A move waits out the flick first.
                         (when: [MovedFor(0.02, 100)], to: "window_drag"),
                         // Held still: a drag about to start.
                         (when: [After(600)], to: "window_drag"),

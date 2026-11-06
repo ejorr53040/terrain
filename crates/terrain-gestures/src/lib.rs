@@ -368,7 +368,7 @@ impl Engine {
     fn step(&mut self, hand: &Hand, point: Vec2, t_ms: u64) -> Vec<Action> {
         let mut actions = Vec::new();
         if let Some(active) = &mut self.active {
-            active.trail.push_back((t_ms, to_screen(hand.in_view)));
+            active.trail.push_back((t_ms, point));
             while active
                 .trail
                 .front()
@@ -402,7 +402,7 @@ impl Engine {
                     state: State::default(),
                     entered_ms: t_ms,
                     at: point,
-                    trail: VecDeque::from([(t_ms, to_screen(hand.in_view))]),
+                    trail: VecDeque::from([(t_ms, point)]),
                 });
                 actions.extend(self.enter(&start, t_ms));
             }
@@ -449,13 +449,7 @@ impl Engine {
         let Some(active) = &mut self.active else {
             return Vec::new();
         };
-        // ponytail: a state the file doesn't define ends the gesture; the
-        // checker (#20) will reject such files outright.
-        let next = self.gestures.gestures[active.gesture]
-            .states
-            .get(to)
-            .cloned()
-            .unwrap_or_default();
+        let next = self.gestures.gestures[active.gesture].states[to].clone();
         let held = &active.state.holds;
         let releases = held.iter().rev().filter(|b| !next.holds.contains(b));
         let presses = next.holds.iter().filter(|b| !held.contains(b));
