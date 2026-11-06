@@ -1,6 +1,6 @@
 //! Desktop control says what the hand is doing, for an on-screen indicator.
 
-use crate::support::{Grip, Script};
+use crate::support::{Fingers, Script};
 use glam::Vec3;
 use terrain_desktop::Status;
 
@@ -16,10 +16,10 @@ const LOWERED: Vec3 = Vec3::new(0.0, -0.3, 0.6);
 #[test]
 fn a_hand_being_raised_is_engaging_then_pointing() {
     assert_eq!(Script::default().gone(5).status(), Status::Disengaged);
-    let raising = Script::default().hold(AHEAD, Grip::Open, 5);
+    let raising = Script::default().hold(AHEAD, Fingers::Open, 5);
     assert_eq!(raising.status(), Status::Engaging);
     assert_eq!(
-        raising.hold(AHEAD, Grip::Open, 15).status(),
+        raising.hold(AHEAD, Fingers::Open, 15).status(),
         Status::Pointing
     );
 }
@@ -27,17 +27,17 @@ fn a_hand_being_raised_is_engaging_then_pointing() {
 #[test]
 fn a_pinch_is_a_pinch_until_it_drags_or_long_presses() {
     let pinched = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 6);
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 6);
     assert_eq!(pinched.status(), gesture("🤏 Pinch"));
     let moved = AHEAD + Vec3::new(0.08, 0.0, 0.0);
     let dragged = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 6)
-        .sweep(AHEAD, moved, Grip::Pinch, 10);
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 6)
+        .sweep(AHEAD, moved, Fingers::Pinch, 10);
     assert_eq!(dragged.status(), gesture("🤏 Drag"));
     assert_eq!(
-        pinched.hold(AHEAD, Grip::Pinch, 20).status(),
+        pinched.hold(AHEAD, Fingers::Pinch, 20).status(),
         gesture("🤏 Right click")
     );
 }
@@ -46,30 +46,30 @@ fn a_pinch_is_a_pinch_until_it_drags_or_long_presses() {
 fn a_fist_is_a_window_drag_once_it_moves() {
     let fist = || {
         Script::default()
-            .hold(AHEAD, Grip::Open, 20)
-            .hold(AHEAD, Grip::Fist, 5)
+            .hold(AHEAD, Fingers::Open, 20)
+            .hold(AHEAD, Fingers::Fist, 5)
     };
     assert_eq!(fist().status(), gesture("✊ Fist"));
     let to = AHEAD + Vec3::new(0.05, 0.0, 0.0);
     // Past the 100 ms a flick has to happen in.
     let moved = fist()
-        .sweep(AHEAD, to, Grip::Fist, 5)
-        .hold(to, Grip::Fist, 4);
+        .sweep(AHEAD, to, Fingers::Fist, 5)
+        .hold(to, Fingers::Fist, 4);
     assert_eq!(moved.status(), gesture("✊ Window drag"));
 }
 
 #[test]
 fn a_vee_is_scrolling() {
     let scrolling = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Vee, 6);
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Vee, 6);
     assert_eq!(scrolling.status(), gesture("✌ Scroll"));
 }
 
 #[test]
 fn a_lowered_hand_is_disengaged() {
     let lowered = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(LOWERED, Grip::Open, 40);
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(LOWERED, Fingers::Open, 40);
     assert_eq!(lowered.status(), Status::Disengaged);
 }

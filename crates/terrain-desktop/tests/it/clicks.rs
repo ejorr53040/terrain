@@ -1,7 +1,7 @@
 //! A pinch works like a finger on a touchscreen: a tap clicks, a pinch
 //! that moves drags, a pinch held still opens the context menu.
 
-use crate::support::{Grip, Script, buttons, point_at_each_button};
+use crate::support::{Fingers, Script, buttons, point_at_each_button};
 use glam::Vec3;
 use terrain_desktop::{Action, Button};
 
@@ -11,9 +11,9 @@ const RIGHT: Vec3 = Vec3::new(0.08, 0.0, 0.6);
 #[test]
 fn a_quick_pinch_clicks_where_it_started() {
     let inputs = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 8)
-        .hold(AHEAD, Grip::Open, 10)
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 8)
+        .hold(AHEAD, Fingers::Open, 10)
         .run();
     let at = point_at_each_button(&inputs);
     assert_eq!(
@@ -26,9 +26,9 @@ fn a_quick_pinch_clicks_where_it_started() {
 #[test]
 fn a_pinch_held_still_right_clicks_once() {
     let inputs = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 30)
-        .hold(AHEAD, Grip::Open, 10)
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 30)
+        .hold(AHEAD, Fingers::Open, 10)
         .run();
     assert_eq!(
         buttons(&inputs),
@@ -39,11 +39,11 @@ fn a_pinch_held_still_right_clicks_once() {
 #[test]
 fn a_pinch_that_moves_drags_from_where_it_started() {
     let inputs = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 6)
-        .sweep(AHEAD, RIGHT, Grip::Pinch, 10)
-        .hold(RIGHT, Grip::Pinch, 10)
-        .hold(RIGHT, Grip::Open, 10)
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 6)
+        .sweep(AHEAD, RIGHT, Fingers::Pinch, 10)
+        .hold(RIGHT, Fingers::Pinch, 10)
+        .hold(RIGHT, Fingers::Open, 10)
         .run();
     assert_eq!(
         buttons(&inputs),
@@ -61,10 +61,10 @@ fn a_pinch_that_moves_drags_from_where_it_started() {
 #[test]
 fn a_pinch_held_still_then_moved_drags_instead_of_right_clicking() {
     let inputs = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 40)
-        .sweep(AHEAD, RIGHT, Grip::Pinch, 10)
-        .hold(RIGHT, Grip::Open, 10)
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 40)
+        .sweep(AHEAD, RIGHT, Fingers::Pinch, 10)
+        .hold(RIGHT, Fingers::Open, 10)
         .run();
     assert_eq!(
         buttons(&inputs),
@@ -77,8 +77,8 @@ fn a_pinch_held_still_then_moved_drags_instead_of_right_clicking() {
 #[test]
 fn a_pinch_held_still_right_clicks_only_once_it_opens() {
     let lost = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 40)
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 40)
         .gone(20)
         .run();
     assert_eq!(
@@ -94,9 +94,9 @@ fn a_pinch_right_clicks_from_six_tenths_of_a_second_still() {
     let opened_after = |frames| {
         buttons(
             &Script::default()
-                .hold(AHEAD, Grip::Open, 20)
-                .hold(AHEAD, Grip::Pinch, frames)
-                .hold(AHEAD, Grip::Open, 10)
+                .hold(AHEAD, Fingers::Open, 20)
+                .hold(AHEAD, Fingers::Pinch, frames)
+                .hold(AHEAD, Fingers::Open, 10)
                 .run(),
         )
     };

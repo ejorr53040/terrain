@@ -1,7 +1,7 @@
 //! A hand takes control of the desktop only when it's raised open into the
 //! reach, so hands at the keyboard don't click as they type.
 
-use crate::support::{Grip, Script, buttons};
+use crate::support::{Fingers, Script, buttons};
 use glam::Vec3;
 use terrain_desktop::{Action, Button};
 
@@ -12,10 +12,10 @@ const AT_KEYBOARD: Vec3 = Vec3::new(-0.2, -0.17, 0.6);
 #[test]
 fn a_hand_at_the_keyboard_never_touches_the_desktop() {
     let inputs = Script::default()
-        .hold(AT_KEYBOARD, Grip::Open, 30)
-        .hold(AT_KEYBOARD, Grip::Pinch, 10)
-        .hold(AT_KEYBOARD, Grip::Fist, 10)
-        .hold(AT_KEYBOARD, Grip::Open, 10)
+        .hold(AT_KEYBOARD, Fingers::Open, 30)
+        .hold(AT_KEYBOARD, Fingers::Pinch, 10)
+        .hold(AT_KEYBOARD, Fingers::Fist, 10)
+        .hold(AT_KEYBOARD, Fingers::Open, 10)
         .run();
     assert_eq!(inputs, vec![]);
 }
@@ -23,20 +23,20 @@ fn a_hand_at_the_keyboard_never_touches_the_desktop() {
 #[test]
 fn a_hand_pinching_as_it_rises_into_reach_doesnt_click_until_raised_open() {
     let inputs = Script::default()
-        .sweep(AT_KEYBOARD, AHEAD, Grip::Pinch, 10)
-        .hold(AHEAD, Grip::Pinch, 20)
+        .sweep(AT_KEYBOARD, AHEAD, Fingers::Pinch, 10)
+        .hold(AHEAD, Fingers::Pinch, 20)
         .run();
     assert_eq!(inputs, vec![]);
 }
 
 #[test]
 fn a_hand_raised_open_for_a_moment_takes_control() {
-    let inputs = Script::default().hold(AHEAD, Grip::Open, 5).run();
+    let inputs = Script::default().hold(AHEAD, Fingers::Open, 5).run();
     assert_eq!(inputs, vec![], "too soon");
     let inputs = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 8)
-        .hold(AHEAD, Grip::Open, 5)
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 8)
+        .hold(AHEAD, Fingers::Open, 5)
         .run();
     assert_eq!(
         buttons(&inputs),
@@ -47,10 +47,10 @@ fn a_hand_raised_open_for_a_moment_takes_control() {
 #[test]
 fn a_hand_lowered_back_to_the_keyboard_gives_up_control() {
     let inputs = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .sweep(AHEAD, AT_KEYBOARD, Grip::Open, 5)
-        .hold(AT_KEYBOARD, Grip::Open, 40)
-        .hold(AT_KEYBOARD, Grip::Pinch, 10)
+        .hold(AHEAD, Fingers::Open, 20)
+        .sweep(AHEAD, AT_KEYBOARD, Fingers::Open, 5)
+        .hold(AT_KEYBOARD, Fingers::Open, 40)
+        .hold(AT_KEYBOARD, Fingers::Pinch, 10)
         .run();
     assert_eq!(buttons(&inputs), vec![]);
 }
@@ -59,9 +59,9 @@ fn a_hand_lowered_back_to_the_keyboard_gives_up_control() {
 fn the_other_hand_cant_click_while_one_has_control() {
     let other = AHEAD + Vec3::new(0.15, 0.0, 0.0);
     let inputs = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold_two((other, Grip::Open), (AHEAD, Grip::Open), 20)
-        .hold_two((other, Grip::Pinch), (AHEAD, Grip::Open), 10)
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold_two((other, Fingers::Open), (AHEAD, Fingers::Open), 20)
+        .hold_two((other, Fingers::Pinch), (AHEAD, Fingers::Open), 10)
         .run();
     assert_eq!(buttons(&inputs), vec![]);
 }
@@ -69,23 +69,24 @@ fn the_other_hand_cant_click_while_one_has_control() {
 #[test]
 fn a_hand_curling_as_it_lowers_out_of_reach_doesnt_click() {
     let inputs = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .sweep(AHEAD, AT_KEYBOARD, Grip::Open, 4)
-        .hold(AT_KEYBOARD, Grip::Pinch, 10)
-        .hold(AT_KEYBOARD, Grip::Fist, 10)
+        .hold(AHEAD, Fingers::Open, 20)
+        .sweep(AHEAD, AT_KEYBOARD, Fingers::Open, 4)
+        .hold(AT_KEYBOARD, Fingers::Pinch, 10)
+        .hold(AT_KEYBOARD, Fingers::Fist, 10)
         .run();
     assert_eq!(buttons(&inputs), vec![]);
 }
 
 #[test]
 fn time_running_backwards_does_nothing_strange() {
-    let mut script = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 3);
+    let mut script =
+        Script::default()
+            .hold(AHEAD, Fingers::Open, 20)
+            .hold(AHEAD, Fingers::Pinch, 3);
     // A clip spliced onto another: its clock starts over.
     let restarted = Script::default()
-        .hold(AHEAD, Grip::Pinch, 3)
-        .hold(AHEAD, Grip::Open, 5);
+        .hold(AHEAD, Fingers::Pinch, 3)
+        .hold(AHEAD, Fingers::Open, 5);
     script.frames.extend(restarted.frames);
     let inputs = script.run();
     assert!(buttons(&inputs).len() <= 2, "{:?}", buttons(&inputs));
@@ -101,9 +102,9 @@ fn the_reach_is_in_the_camera_picture_whatever_tilt_the_3d_app_calibrated() {
         ..Default::default()
     };
     let script = Script::default()
-        .hold(AHEAD, Grip::Open, 20)
-        .hold(AHEAD, Grip::Pinch, 8)
-        .hold(AHEAD, Grip::Open, 5);
+        .hold(AHEAD, Fingers::Open, 20)
+        .hold(AHEAD, Fingers::Pinch, 8)
+        .hold(AHEAD, Fingers::Open, 5);
     let mut control = terrain_desktop::DesktopControl::new(camera);
     let inputs: Vec<Action> = script
         .frames

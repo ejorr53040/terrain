@@ -13,6 +13,8 @@ mod region;
 mod smoothing;
 mod source;
 mod state;
+#[cfg(feature = "synthetic")]
+pub mod synthetic;
 
 pub use frame::{Hand, HandFrame, Handedness, landmark};
 pub use hand_tracker::{HandTracker, TrackedHand};
