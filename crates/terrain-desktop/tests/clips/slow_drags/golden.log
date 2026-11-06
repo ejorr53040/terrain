@@ -1,9 +1,9 @@
-  1299 ms  Press(Left) at (0.61, 0.42)
+  1299 ms  Press(Left) at (0.61, 0.41)
   2199 ms  Release(Left) at (0.41, 0.44)
-  3999 ms  Press(Left) at (0.50, 0.45)
+  3999 ms  Press(Left) at (0.48, 0.45)
   4633 ms  Release(Left) at (0.59, 0.46)
   6366 ms  Press(Left) at (0.59, 0.47)
   7299 ms  Release(Left) at (0.59, 0.15)
-  8433 ms  Press(Left) at (0.59, 0.16)
+  8433 ms  Press(Left) at (0.59, 0.15)
   9199 ms  Release(Left) at (0.59, 0.65)
 300 frames; pointer ranged x 0.40..0.62, y 0.14..1.00
