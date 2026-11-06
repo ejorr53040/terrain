@@ -12,4 +12,6 @@ libc = "0.2.189"
 serde_json.workspace = true
 
 [dev-dependencies]
+terrain-hands = { workspace = true, features = ["synthetic"] }
+ron = "0.12"
 proptest = "1.11.0"

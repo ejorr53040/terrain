@@ -1,4 +1,4 @@
-//! The mirrored webcam preview in a corner of the window, toggled with `P`,
+//! The mirrored webcam preview in a corner of the window, toggled with `V`,
 //! with tracked hands (region and skeleton) drawn on it, and a debug
 //! overlay with the capture frame rate and tracking stats.
 
@@ -16,12 +16,9 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
 use terrain_hands::{
-    HandTracker, LANDMARK_MODEL, LiveTracker, PALM_MODEL, TrackedHand,
-    capture::{self, Camera, CameraFrame},
+    LiveTracker, TrackedHand,
+    capture::{self, CameraFrame},
 };
-
-/// The webcam the preview opens by default.
-pub const DEFAULT_CAMERA: &str = "/dev/video0";
 
 /// Preview width as a fraction of the window's.
 const PREVIEW_WIDTH: f32 = 0.25;
@@ -107,14 +104,6 @@ impl Plugin for PreviewPlugin {
     }
 }
 
-/// Opens the webcam at `device` and starts tracking hands in it.
-pub fn start_tracking(device: &str) -> Result<LiveTracker, String> {
-    let camera = Camera::open(device).map_err(|e| e.to_string())?;
-    let tracker = HandTracker::new(PALM_MODEL, LANDMARK_MODEL)
-        .map_err(|e| format!("can't load hand models from {PALM_MODEL}, {LANDMARK_MODEL}: {e}"))?;
-    LiveTracker::spawn(camera, tracker).map_err(|e| format!("can't start hand tracking: {e}"))
-}
-
 #[derive(Resource)]
 struct LiveTracking {
     tracker: Option<LiveTracker>,
@@ -160,8 +149,8 @@ struct Latency {
 }
 
 impl Latency {
-    /// Frames the median is taken over: a second at 30 fps.
-    const WINDOW: usize = 30;
+    /// Frames the median is taken over: a second's worth.
+    const WINDOW: usize = capture::FPS as usize;
 
     fn record(&mut self, latency: Duration) {
         if self.recent.len() == Self::WINDOW {
@@ -296,13 +285,8 @@ fn show_latest_frame(
     tracking.has_frame = true;
 }
 
-fn toggle_preview(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut requests: ResMut<crate::Requests>,
-    mut tracking: ResMut<LiveTracking>,
-) {
-    // V, not P: P stamps a template.
-    if keys.just_pressed(KeyCode::KeyV) || std::mem::take(&mut requests.preview) {
+fn toggle_preview(mut requests: ResMut<crate::Requests>, mut tracking: ResMut<LiveTracking>) {
+    if std::mem::take(&mut requests.preview) {
         tracking.wanted = !tracking.wanted;
     }
 }

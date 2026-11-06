@@ -8,24 +8,11 @@ use terrain_blocks::{Block, MoveError, Workspace};
 /// A fresh copy of the fixture crate in a temp dir.
 fn shapes() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
-    copy_dir(
+    crate::copy_dir(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/shapes"),
         dir.path(),
     );
     dir
-}
-
-fn copy_dir(from: &Path, to: &Path) {
-    fs::create_dir_all(to).unwrap();
-    for entry in fs::read_dir(from).unwrap() {
-        let entry = entry.unwrap();
-        let dest = to.join(entry.file_name());
-        if entry.file_type().unwrap().is_dir() {
-            copy_dir(&entry.path(), &dest);
-        } else {
-            fs::copy(entry.path(), dest).unwrap();
-        }
-    }
 }
 
 /// "kind name" labels of a stack, nested stacks in brackets.
@@ -33,7 +20,7 @@ fn outline(blocks: &[Block]) -> Vec<String> {
     blocks
         .iter()
         .map(|b| {
-            let label = format!("{} {}", b.kind, b.name);
+            let label = b.label();
             if b.children.is_empty() {
                 label
             } else {
@@ -51,8 +38,8 @@ fn open_lists_files_and_their_blocks_in_source_order() {
     assert_eq!(
         outline(ws.files()),
         [
-            "file src/geometry.rs [struct Point, fn origin]",
-            "file src/lib.rs [mod geometry, struct Square, impl Square [fn area, fn perimeter], const UNIT, mod util [fn double], fn largest]",
+            "src/geometry.rs [struct Point, fn origin]",
+            "src/lib.rs [mod geometry, struct Square, impl Square [fn area, fn perimeter], const UNIT, mod util [fn double], fn largest]",
         ]
     );
     let lib = &ws.files()[1];
@@ -179,8 +166,8 @@ pub fn origin() -> Point {"
     assert_eq!(
         outline(ws.files()),
         [
-            "file src/geometry.rs [struct Point, impl Square [fn area, fn perimeter], fn origin]",
-            "file src/lib.rs [mod geometry, struct Square, const UNIT, mod util [fn double], fn largest]",
+            "src/geometry.rs [struct Point, impl Square [fn area, fn perimeter], fn origin]",
+            "src/lib.rs [mod geometry, struct Square, const UNIT, mod util [fn double], fn largest]",
         ]
     );
 }
@@ -245,8 +232,8 @@ fn refresh_picks_up_edits_and_new_files_from_outside() {
     assert_eq!(
         outline(&ws.files()[..2]),
         [
-            "file src/area.rs [type Area]",
-            "file src/geometry.rs [struct Point, fn origin, fn unit]"
+            "src/area.rs [type Area]",
+            "src/geometry.rs [struct Point, fn origin, fn unit]"
         ]
     );
     assert!(ws.refresh().unwrap().is_empty(), "nothing changed since");

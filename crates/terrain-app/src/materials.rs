@@ -20,8 +20,6 @@ pub struct Preset {
     pub restitution: f32,
     /// Carries power, once electricity is built.
     pub conductive: bool,
-    /// No effect yet; there for attraction and repulsion later.
-    pub charge: f32,
 }
 
 /// Every preset. Editing one changes every shape made of it.
@@ -47,7 +45,6 @@ impl Default for Materials {
                 dynamic_friction: friction.1,
                 restitution,
                 conductive,
-                charge: 0.0,
             };
         Self {
             presets: vec![

@@ -1,4 +1,7 @@
-use std::fmt;
+use std::{
+    fmt, fs, io,
+    path::{Path, PathBuf},
+};
 
 use glam::{Mat3, Quat, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
@@ -102,9 +105,50 @@ impl CameraModel {
         Vec2::new(width, width / self.aspect)
     }
 
+    /// Where a calibration is kept: `calibration.json` in `config_dir()`.
+    pub fn saved_path() -> Option<PathBuf> {
+        Some(crate::config_dir()?.join("calibration.json"))
+    }
+
+    /// The saved calibration, or the default camera if there's none. An
+    /// unusable one is reported and ignored.
+    pub fn saved() -> Self {
+        let Some(path) = Self::saved_path() else {
+            return Self::default();
+        };
+        Self::load(&path)
+            .unwrap_or_else(|e| {
+                eprintln!("ignoring the calibration in {}: {e}", path.display());
+                None
+            })
+            .unwrap_or_default()
+    }
+
+    /// The camera saved at `path`: `Ok(None)` if there's no file, an error
+    /// if it can't be read or isn't plausible.
+    pub fn load(path: &Path) -> io::Result<Option<Self>> {
+        let text = match fs::read_to_string(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+            text => text?,
+        };
+        let camera: Self = serde_json::from_str(&text).map_err(io::Error::other)?;
+        if !camera.plausible() {
+            return Err(io::Error::other("implausible calibration"));
+        }
+        Ok(Some(camera))
+    }
+
+    /// Saves this camera to `path`, making its directory if need be.
+    pub fn save(&self, path: &Path) -> io::Result<()> {
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        fs::write(path, serde_json::to_string_pretty(self)?)
+    }
+
     /// Whether this could be a real webcam: a field of view webcams have and
     /// a usable tilt. Saved calibrations are checked with it when loaded.
-    pub fn plausible(&self) -> bool {
+    fn plausible(&self) -> bool {
         CALIBRATION_FOV_RANGE.contains(&self.hfov_deg)
             && self.aspect.is_finite()
             && self.aspect > 0.0
@@ -143,7 +187,7 @@ impl CameraModel {
         for _ in 0..CALIBRATION_FIT_ROUNDS {
             let palms = palms_at(&camera);
             let depth = palms.iter().map(|p| p.z).sum::<f32>() / palms.len() as f32;
-            let width_at_1m = 2.0 * (camera.hfov_deg.to_radians() / 2.0).tan() * depth / distance_m;
+            let width_at_1m = camera.view_size_at_1m().x * depth / distance_m;
             camera.hfov_deg = (2.0 * (width_at_1m / 2.0).atan()).to_degrees();
         }
         if !camera.plausible() {

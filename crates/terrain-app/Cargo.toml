@@ -14,4 +14,4 @@ ron.workspace = true
 bevy_egui = "0.42"
 
 [dev-dependencies]
-serde_json.workspace = true
+terrain-hands = { workspace = true, features = ["synthetic"] }

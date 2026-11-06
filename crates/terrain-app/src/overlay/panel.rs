@@ -1,18 +1,16 @@
-//! The overlay, a panel down the right: toggled with `O`, or opened by a
-//! hand resting on the Hot edge. The tool palette, the template Library and
-//! the physics settings with the material presets.
-//! Its controls only write the resources the keys write, so they behave
-//! exactly as the keys do.
+//! The overlay's panel: the tool palette, the template Library and the
+//! physics settings with the material presets. Its controls only write the
+//! resources the keys write, so they behave exactly as the keys do.
 
+use crate::{
+    Arena, Library, Material, Materials, OverlayArea, OverlayOpen, OverlayPointer, PhysicsSettings,
+    Requests, Selection, Shape, Tool, grab::STRETCH_MIN,
+};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_egui::{
     EguiContexts, EguiGlobalSettings, EguiInput, EguiPlugin, EguiPreUpdateSet,
     EguiPrimaryContextPass, PrimaryEguiContext, egui,
-};
-use terrain_app::{
-    Arena, Library, Material, Materials, OverlayArea, OverlayOpen, OverlayPointer, PhysicsSettings,
-    Requests, Selection, Shape, Tool,
 };
 
 pub struct OverlayPlugin;
@@ -105,14 +103,9 @@ fn show(
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.heading("Tool");
                 ui.horizontal(|ui| {
-                    for (key, choice) in [
-                        ("1", Tool::Move),
-                        ("2", Tool::Round),
-                        ("3", Tool::Taper),
-                        ("4", Tool::Copy),
-                    ] {
+                    for (i, choice) in Tool::ALL.into_iter().enumerate() {
                         if ui
-                            .selectable_label(*tool == choice, format!("{key} {choice:?}"))
+                            .selectable_label(*tool == choice, format!("{} {choice:?}", i + 1))
                             .clicked()
                         {
                             *tool = choice;
@@ -129,7 +122,7 @@ fn show(
                         let longest = arena.longest();
                         for (axis, name) in ["width", "height", "depth"].iter().enumerate() {
                             ui.add(
-                                egui::Slider::new(&mut edited.size[axis], 0.03..=longest)
+                                egui::Slider::new(&mut edited.size[axis], STRETCH_MIN..=longest)
                                     .suffix(" m")
                                     .text(*name),
                             );

@@ -4,11 +4,6 @@ use crate::support::*;
 use bevy::prelude::*;
 use terrain_app::Requests;
 
-/// Where calibration asks for the hand: 50 cm straight in front of the camera.
-const CALIBRATION_SPOT: Vec3 = Vec3::new(0.0, 0.0, 0.5);
-/// Frames covering calibration's 3 s countdown and 1 s of measuring.
-const CALIBRATING: usize = 130;
-
 /// The cube grabbed and moved 10 cm right, then let go; then `rest` frames.
 fn moved_cube(rest: usize) -> Harness {
     let camera = TestCamera::default();

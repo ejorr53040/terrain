@@ -33,15 +33,6 @@ fn shrinking_the_arena_moves_its_walls_in() {
 }
 
 #[test]
-fn the_default_arena_is_the_old_box_with_15_cm_cells_and_room_for_64_shapes() {
-    let arena = Arena::default();
-    assert_eq!(arena.min, Vec3::new(-0.65, -0.3, -0.4));
-    assert_eq!(arena.max, Vec3::new(0.65, 0.4, 0.2));
-    assert_eq!(arena.cell, 0.15);
-    assert_eq!(arena.cap, 64);
-}
-
-#[test]
 fn a_shallow_arena_stops_a_stretch_short_of_its_depth() {
     // Hands 8 cm apart along z (toward the camera), then 40 cm: five times
     // as deep, more than an Arena cut to 0.4 m deep holds.

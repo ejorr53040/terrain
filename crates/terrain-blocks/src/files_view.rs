@@ -41,7 +41,11 @@ impl App {
                     self.drop(dragging.clone(), into, index);
                 }
             }
-            let label = self.ws.block(&dragging).map(label).unwrap_or_default();
+            let label = self
+                .ws
+                .block(&dragging)
+                .map(Block::label)
+                .unwrap_or_default();
             ui.painter().text(
                 p + vec2(14.0, 0.0),
                 egui::Align2::LEFT_CENTER,
@@ -61,7 +65,6 @@ impl App {
         }
     }
 
-    /// Draws `b` and its stack; returns its rect.
     fn block(&mut self, ui: &mut egui::Ui, b: &Block, id: Id, dropped: &mut Option<Id>) -> Rect {
         let pal = look::palette(ui);
         let (fill, edge) = look::kind_colors(b.kind, &pal);
@@ -69,7 +72,7 @@ impl App {
         let radius = if b.kind == "file" { 14 } else { 10 };
         let inner = look::block(fill, edge, radius).show(ui, |ui| {
             ui.set_width(ui.available_width());
-            let text = RichText::new(label(b)).font(look::bold(LABEL_SIZE));
+            let text = RichText::new(b.label()).font(look::bold(LABEL_SIZE));
             let head = ui
                 .add(
                     egui::Label::new(text)
@@ -94,7 +97,7 @@ impl App {
         });
         let (head, centers) = inner.inner;
         let rect = inner.response.rect;
-        if matches!(b.kind, "file" | "impl" | "trait" | "mod") && !b.error {
+        if b.is_container() && !b.error {
             self.containers.push((id.clone(), rect, centers));
         }
 
@@ -154,12 +157,4 @@ fn estimated_height(b: &Block) -> f32 {
         .iter()
         .map(|c| estimated_height(c) + 6.0)
         .sum::<f32>()
-}
-
-fn label(b: &Block) -> String {
-    if b.kind == "file" {
-        b.name.clone()
-    } else {
-        format!("{} {}", b.kind, b.name)
-    }
 }

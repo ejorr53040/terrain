@@ -9,24 +9,11 @@ use terrain_blocks::{ItemRef, LibraryKind, MoveError, Workspace};
 /// A fresh copy of the fleet fixture workspace in a temp dir.
 fn fleet() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
-    copy_dir(
+    crate::copy_dir(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fleet"),
         dir.path(),
     );
     dir
-}
-
-fn copy_dir(from: &Path, to: &Path) {
-    fs::create_dir_all(to).unwrap();
-    for entry in fs::read_dir(from).unwrap() {
-        let entry = entry.unwrap();
-        let dest = to.join(entry.file_name());
-        if entry.file_type().unwrap().is_dir() {
-            copy_dir(&entry.path(), &dest);
-        } else {
-            fs::copy(entry.path(), dest).unwrap();
-        }
-    }
 }
 
 #[test]
@@ -343,4 +330,26 @@ fn items_in_a_file_with_a_syntax_error_are_not_missing_and_survive_dismiss() {
     fs::write(&vm_rs, good).unwrap();
     ws.refresh().unwrap();
     assert_eq!(outline(&ws, "fleet-node")[0], "boot [fn boot, fn stop]");
+}
+
+#[test]
+fn every_change_to_the_sidecar_or_the_files_counts_and_an_idle_refresh_does_not() {
+    let dir = fleet();
+    let mut ws = Workspace::open(dir.path()).unwrap();
+    let at = ws.changes();
+    ws.refresh().unwrap();
+    assert_eq!(ws.changes(), at, "nothing changed on disk");
+
+    ws.new_capability("fleet-node", "VM lifecycle").unwrap();
+    assert!(ws.changes() > at, "a sidecar write counts");
+
+    let at = ws.changes();
+    let lib = dir.path().join("crates/fleet-proto/src/lib.rs");
+    fs::write(
+        &lib,
+        fs::read_to_string(&lib).unwrap() + "\npub fn added() {}\n",
+    )
+    .unwrap();
+    ws.refresh().unwrap();
+    assert!(ws.changes() > at, "a file changed on disk counts");
 }

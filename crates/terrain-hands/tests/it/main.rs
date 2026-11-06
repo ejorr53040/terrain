@@ -3,4 +3,5 @@
 
 mod hand_landmarks;
 mod palm_detection;
+mod saved_camera;
 mod support;

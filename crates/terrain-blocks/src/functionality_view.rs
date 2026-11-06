@@ -145,7 +145,6 @@ impl App {
         }
     }
 
-    /// Draws a System; returns its rect.
     fn system_block(&mut self, ui: &mut egui::Ui, s: &System, pos: Pos2, hits: &mut Hits) -> Rect {
         let pal = look::palette(ui);
         let inner = look::block(pal.surface, pal.border_strong, 18).show(ui, |ui| {
@@ -176,10 +175,7 @@ impl App {
                         .clicked()
                     {
                         match self.ws.new_capability(&s.name, "New capability") {
-                            Ok(index) => {
-                                self.renaming = Some((index, "New capability".into()));
-                                self.reload_systems();
-                            }
+                            Ok(index) => self.renaming = Some((index, "New capability".into())),
                             Err(e) => self.refused(e),
                         }
                     }
@@ -245,7 +241,7 @@ impl App {
                 let mut on = *shown;
                 if ui.checkbox(&mut on, name).changed() {
                     match self.ws.pin(name, on) {
-                        Ok(()) => self.reload_systems(),
+                        Ok(()) => {}
                         Err(e) => self.message = format!("couldn't save the sidecar: {e}"),
                     }
                 }
@@ -414,7 +410,7 @@ impl App {
         op: impl FnOnce(&mut terrain_blocks::Workspace) -> Result<(), MoveError>,
     ) {
         match op(&mut self.ws) {
-            Ok(()) => self.reload_systems(),
+            Ok(()) => {}
             Err(e) => self.refused(e),
         }
     }

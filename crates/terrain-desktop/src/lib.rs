@@ -1,9 +1,6 @@
 //! Drives the real desktop with a hand, through the gesture engine: the
-//! palm points; a pinch works like a finger on a touchscreen (a tap clicks,
-//! moving drags, holding still and letting go right-clicks); a fist drags
-//! the window under the pointer; a Vee scrolls; two hands brought together
-//! then spread apart toggle full screen, two Vees dictation. What each
-//! gesture does is the built-in gesture file's (`terrain-gestures`).
+//! palm points, and what each gesture does is the built-in gesture file's
+//! (`terrain-gestures`' `default.ron`).
 //!
 //! A hand takes control only once it's held open in the reach for a
 //! moment, so hands typing at the keyboard below never click.
@@ -11,7 +8,7 @@
 mod uinput;
 
 use glam::Vec2;
-pub use terrain_gestures::{Action as Input, Button, Status};
+pub use terrain_gestures::{Action, Button, Status};
 use terrain_gestures::{Engine, GestureFile, Hand, Pose};
 use terrain_hands::{CameraModel, HandFrame, HandState, HandStateEstimator};
 pub use uinput::VirtualDesktop;
@@ -19,7 +16,6 @@ pub use uinput::VirtualDesktop;
 /// Turns tracked hands into desktop input.
 pub struct DesktopControl {
     estimator: HandStateEstimator,
-    camera: CameraModel,
     engine: Engine,
 }
 
@@ -27,7 +23,6 @@ impl DesktopControl {
     pub fn new(camera: CameraModel) -> Self {
         Self {
             estimator: HandStateEstimator::new(camera),
-            camera,
             engine: Engine::new(GestureFile::default_gestures()),
         }
     }
@@ -42,8 +37,8 @@ impl DesktopControl {
         self.engine.status()
     }
 
-    /// The input `frame` calls for.
-    pub fn update(&mut self, frame: &HandFrame) -> Vec<Input> {
+    /// The actions `frame` calls for.
+    pub fn update(&mut self, frame: &HandFrame) -> Vec<Action> {
         let tracked = self.estimator.update(frame);
         let hands: Vec<Hand> = tracked
             .hands
@@ -60,7 +55,7 @@ impl DesktopControl {
 
     /// Lets go of everything and gives up control: for when hands stop
     /// arriving at all.
-    pub fn let_go(&mut self) -> Vec<Input> {
+    pub fn let_go(&mut self) -> Vec<Action> {
         self.engine.let_go()
     }
 
@@ -68,10 +63,11 @@ impl DesktopControl {
     /// the camera: normalized, x right, y down.
     fn in_view(&self, hand: &HandState) -> Vec2 {
         // Positions come tilted level; the view is the camera's own frame.
-        let p = self.camera.tilt.inverse() * hand.position;
+        let camera = self.estimator.camera();
+        let p = camera.tilt.inverse() * hand.position;
         // A palm at or behind the lens can't be: read it as far off view.
         let p = p.with_z(p.z.max(1e-3));
-        let size = self.camera.view_size_at_1m() * p.z;
+        let size = camera.view_size_at_1m() * p.z;
         Vec2::new(0.5 + p.x / size.x, 0.5 - p.y / size.y)
     }
 }
@@ -95,7 +91,7 @@ pub fn dry_run(frames: &[HandFrame]) -> String {
         let by: Vec2 = inputs
             .iter()
             .filter_map(|i| match i {
-                Input::Scroll(by) => Some(*by),
+                Action::Scroll(by) => Some(*by),
                 _ => None,
             })
             .sum();
@@ -107,12 +103,12 @@ pub fn dry_run(frames: &[HandFrame]) -> String {
         }
         for input in inputs {
             match input {
-                Input::PointTo(p) => {
+                Action::PointTo(p) => {
                     lo = lo.min(p);
                     hi = hi.max(p);
                     at = p;
                 }
-                Input::Scroll(_) => {}
+                Action::Scroll(_) => {}
                 other => {
                     log += &format!(
                         "{:>6} ms  {other:?} at ({:.2}, {:.2})\n",

@@ -7,11 +7,10 @@ use std::path::Path;
 use glam::Vec2;
 
 use crate::capture::FPS;
+use crate::palm::MAX_HANDS;
 use crate::state::FORGET_AFTER_MS;
 use crate::{Hand, HandRegion, Handedness, LandmarkModel, PalmDetector, RgbaImage, landmark};
 
-/// Hands tracked at once.
-const MAX_HANDS: usize = 2;
 /// While following a hand, look for another only every this many frames:
 /// the palm detector costs more than following a hand, and a second hand
 /// can wait a tenth of a second to be found.

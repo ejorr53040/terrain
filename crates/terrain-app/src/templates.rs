@@ -5,13 +5,12 @@
 
 use std::{collections::VecDeque, path::PathBuf};
 
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Arena, Grabbable, HandCursor, Material, Materials, Placed, SceneCamera, Screen, Selection,
-    Shape,
-    build::{OverlayArea, cell_of, cells, cursors, middle_of, taken},
+    Arena, CUBE_SIZE, Grabbable, Material, Materials, Placed, Requests, Selection, Shape,
+    screen::Aim,
 };
 
 /// A named build: shapes on grid cells, loose (not glued) once placed.
@@ -37,17 +36,13 @@ pub struct Part {
     /// A quaternion: x, y, z, w.
     #[serde(default = "no_turn")]
     pub rotation: (f32, f32, f32, f32),
-    /// A preset's name.
-    #[serde(default = "wood")]
+    /// A preset's name; none, or one there's no preset of, is the default material.
+    #[serde(default)]
     pub material: String,
 }
 
 fn no_turn() -> (f32, f32, f32, f32) {
     (0.0, 0.0, 0.0, 1.0)
-}
-
-fn wood() -> String {
-    "wood".into()
 }
 
 /// Every template: the built-in ones, then the user's from `dir`.
@@ -81,11 +76,24 @@ impl Library {
         let Some(dir) = &library.dir else {
             return library;
         };
-        let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|entry| entry.path())
+        let entries = match std::fs::read_dir(dir) {
+            Ok(entries) => entries,
+            // No templates saved yet.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return library,
+            Err(e) => {
+                warn!("can't read templates from {}: {e}", dir.display());
+                library.errors.push(format!("{}: {e}", dir.display()));
+                return library;
+            }
+        };
+        let mut files: Vec<PathBuf> = entries
+            .filter_map(|entry| match entry {
+                Ok(entry) => Some(entry.path()),
+                Err(e) => {
+                    library.errors.push(format!("{}: {e}", dir.display()));
+                    None
+                }
+            })
             .filter(|p| p.extension().is_some_and(|e| e == "ron"))
             .collect();
         files.sort();
@@ -136,11 +144,11 @@ impl Library {
 fn built_in() -> Vec<Template> {
     let cube = |x, y, z| Part {
         cell: (x, y, z),
-        size: (0.15, 0.15, 0.15),
+        size: Vec3::splat(CUBE_SIZE).into(),
         roundness: 0.0,
         taper: 0.0,
         rotation: no_turn(),
-        material: wood(),
+        material: String::new(),
     };
     let template = |name: &str, tags: &[&str], shapes| Template {
         name: name.into(),
@@ -176,18 +184,7 @@ fn built_in() -> Vec<Template> {
     ]
 }
 
-/// What the overlay's buttons ask for without their keys. Taken (and
-/// cleared) the next update, exactly as `T`, `P`, `R`, `C` and `V` would be.
-#[derive(Resource, Default, Debug)]
-pub struct Requests {
-    pub save: bool,
-    pub stamp: bool,
-    pub reset: bool,
-    pub calibrate: bool,
-    pub preview: bool,
-}
-
-/// `T`, `Tab` and `P`.
+/// `T` (or its request), `Tab` and `P` (or its request).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn use_templates(
     mut commands: Commands,
@@ -198,10 +195,7 @@ pub(crate) fn use_templates(
     mut library: ResMut<Library>,
     mut requests: ResMut<Requests>,
     shapes: Query<(Entity, &Transform, &Shape, &Material), With<Grabbable>>,
-    hands: Query<&HandCursor>,
-    window: Query<&Window, With<PrimaryWindow>>,
-    over_ui: Res<OverlayArea>,
-    scene_camera: SceneCamera,
+    aim: Aim,
 ) {
     let (save, stamp) = (
         std::mem::take(&mut requests.save),
@@ -210,9 +204,7 @@ pub(crate) fn use_templates(
     if keys.just_pressed(KeyCode::Tab) && !library.templates.is_empty() {
         library.current = (library.current + 1) % library.templates.len();
     }
-    if (keys.just_pressed(KeyCode::KeyT) || save)
-        && let Some(first) = selection.0.and_then(|e| shapes.get(e).ok())
-    {
+    if save && let Some(first) = selection.0.and_then(|e| shapes.get(e).ok()) {
         // The selection and every shape touching it, and touching those.
         let mut build = vec![first];
         let mut queue = VecDeque::from([first.1.translation]);
@@ -250,7 +242,8 @@ pub(crate) fn use_templates(
                         material: materials
                             .presets
                             .get(material.0)
-                            .map_or_else(wood, |p| p.name.clone()),
+                            .map(|p| p.name.clone())
+                            .unwrap_or_default(),
                     }
                 })
                 .collect(),
@@ -259,22 +252,14 @@ pub(crate) fn use_templates(
             error!("couldn't save the template: {e}");
         }
     }
-    if (keys.just_pressed(KeyCode::KeyP) || stamp)
-        && let Some(template) = library.templates.get(library.current)
-    {
-        let cursor = cursors(&hands, &window, &over_ui)
-            .first()
-            .copied()
-            .unwrap_or(Vec2::splat(0.5));
-        let at = Screen::of(&scene_camera)
-            .and_then(|s| s.on_middle_plane(cursor))
-            .unwrap_or(Vec3::ZERO);
-        let n = cells(&arena);
+    if stamp && let Some(template) = library.templates.get(library.current) {
+        let n = arena.cells();
         // Moved in from the walls as far as the template needs to fit, if it can.
         let offsets = template.shapes.iter().map(|p| IVec3::from(p.cell));
         let lowest = offsets.clone().fold(IVec3::MAX, IVec3::min);
         let highest = offsets.fold(IVec3::MIN, IVec3::max);
-        let anchor = cell_of(&arena, at)
+        let anchor = arena
+            .cell_of(aim.on_middle_plane())
             .min(n - IVec3::ONE - highest)
             .max(-lowest);
         let taken_at: Vec<Vec3> = shapes.iter().map(|(_, t, ..)| t.translation).collect();
@@ -284,8 +269,8 @@ pub(crate) fn use_templates(
             .map(|part| {
                 let cell = anchor + IVec3::from(part.cell);
                 let inside = cell.cmpge(IVec3::ZERO).all() && cell.cmplt(n).all();
-                let at = middle_of(&arena, cell);
-                (inside && !taken(&arena, at, &taken_at)).then_some(at)
+                let at = arena.middle_of(cell);
+                (inside && !arena.taken(at, &taken_at)).then_some(at)
             })
             .collect();
         // All or nothing: no half-stamped builds.

@@ -128,7 +128,10 @@ fn one_hand_followed_through_a_pinch_is_never_found_twice() {
     // that hand again: its palm box lies inside the followed region.
     // ponytail: the frames show the user, so they're gitignored and kept
     // locally only (backup ~/.cache/terrain/fixtures); a fresh clone skips.
-    let frames = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hands/one_hand_pinching");
+    let frames = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/hands/one_hand_pinching"
+    );
     if !std::path::Path::new(frames).exists() {
         eprintln!("skipped: no local webcam frames in {frames}");
         return;
@@ -147,7 +150,11 @@ fn a_hand_lost_for_a_frame_is_found_again_on_the_next() {
     let one = both.blanked_from(both.width / 2);
     let mut tracker = HandTracker::new(PALM_MODEL, LANDMARK_MODEL).unwrap();
     assert_eq!(tracker.track(both.image()).unwrap().len(), 2);
-    assert_eq!(tracker.track(one.image()).unwrap().len(), 1, "one hand blanked out");
+    assert_eq!(
+        tracker.track(one.image()).unwrap().len(),
+        1,
+        "one hand blanked out"
+    );
     let back = tracker.track(both.image()).unwrap();
     assert_eq!(back.len(), 2, "the lost hand, back the next frame");
 }

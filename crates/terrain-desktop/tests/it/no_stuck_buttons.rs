@@ -2,20 +2,19 @@
 //! hands do, every press gets its release, and nothing stays held once the
 //! hand is lost or control is let go.
 
-
+use crate::support::{FRAME_MS, Fingers, hand};
 use glam::Vec3;
 use proptest::prelude::*;
-use crate::support::{FRAME_MS, Grip, hand};
-use terrain_desktop::{Button, DesktopControl, Input};
+use terrain_desktop::{Action, Button, DesktopControl};
 use terrain_hands::{CameraModel, HandFrame};
 
 /// With no hand frame for this long, the app lets go (as `main` does).
 const STALLED_MS: u64 = 500;
 
-/// A stretch of frames: each hand moving in a line making its grip.
+/// A stretch of frames: each hand moving in a line making its fingers.
 #[derive(Clone, Debug)]
 struct Stretch {
-    hands: Vec<(Vec3, Vec3, Grip)>,
+    hands: Vec<(Vec3, Vec3, Fingers)>,
     frames: usize,
     /// The time from one frame to the next: usually a frame, sometimes a
     /// stall.
@@ -26,13 +25,17 @@ fn place() -> impl Strategy<Value = Vec3> {
     (-0.35f32..0.35, -0.3f32..0.3, 0.4f32..1.2).prop_map(|(x, y, z)| Vec3::new(x, y, z))
 }
 
-fn grip() -> impl Strategy<Value = Grip> {
-    prop_oneof![Just(Grip::Open), Just(Grip::Pinch), Just(Grip::Fist)]
+fn fingers() -> impl Strategy<Value = Fingers> {
+    prop_oneof![
+        Just(Fingers::Open),
+        Just(Fingers::Pinch),
+        Just(Fingers::Fist)
+    ]
 }
 
 fn stretch() -> impl Strategy<Value = Stretch> {
     (
-        prop::collection::vec((place(), place(), grip()), 0..=2),
+        prop::collection::vec((place(), place(), fingers()), 0..=2),
         1usize..25,
         prop_oneof![8 => Just(FRAME_MS), 1 => 34u64..1500],
     )
@@ -49,18 +52,18 @@ fn stretch() -> impl Strategy<Value = Stretch> {
 struct Buttons(Vec<Button>);
 
 impl Buttons {
-    fn apply(&mut self, inputs: &[Input]) -> Result<(), String> {
+    fn apply(&mut self, inputs: &[Action]) -> Result<(), String> {
         for &input in inputs {
             match input {
-                Input::Press(b) if self.0.contains(&b) => {
+                Action::Press(b) if self.0.contains(&b) => {
                     return Err(format!("{b:?} pressed twice"));
                 }
-                Input::Press(b) => self.0.push(b),
-                Input::Release(b) if !self.0.contains(&b) => {
+                Action::Press(b) => self.0.push(b),
+                Action::Release(b) if !self.0.contains(&b) => {
                     return Err(format!("{b:?} released while up"));
                 }
-                Input::Release(b) => self.0.retain(|&x| x != b),
-                Input::PointTo(_) | Input::Scroll(_) => {}
+                Action::Release(b) => self.0.retain(|&x| x != b),
+                Action::PointTo(_) | Action::Scroll(_) => {}
             }
         }
         Ok(())
@@ -72,7 +75,7 @@ impl Buttons {
 fn run(stretches: &[Stretch]) -> Result<(), String> {
     let ahead = Vec3::new(0.0, 0.0, 0.6);
     let take_control = Stretch {
-        hands: vec![(ahead, ahead, Grip::Open)],
+        hands: vec![(ahead, ahead, Fingers::Open)],
         frames: 20,
         gap_ms: FRAME_MS,
     };

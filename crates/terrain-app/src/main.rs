@@ -4,24 +4,20 @@
 //! or from a recorded fixture with `--replay <fixture.json>` (looped; the
 //! webcam then only feeds the preview).
 //!
-//! `C` calibrates the camera; the result is kept in
-//! `~/.config/terrain/calibration.json` and loaded at start. `N` adds a box
+//! `C` calibrates the camera; the result is kept in `calibration.json` in
+//! terrain's config directory (`$XDG_CONFIG_HOME/terrain`, else
+//! `~/.config/terrain`) and loaded at start. `N` adds a box
 //! at the cursor, `Delete` removes the outlined shape, `D` copies it and `R`
 //! puts the scene back. `Tab` picks a template, `P` stamps it at the cursor
-//! and `T` saves the selection's build as one, in
-//! `~/.config/terrain/templates`. `O` shows the overlay: tools and the
+//! and `T` saves the selection's build as one, in `templates` beside it. `O` shows the overlay: tools and the
 //! template library with search.
-
-mod overlay;
-
-use std::path::PathBuf;
 
 use bevy::prelude::*;
 use terrain_app::{
-    Arena, CUBE_STARTS, CursorPlugin, DEFAULT_CAMERA, GrabPlugin, Grabbable, Library, Material,
-    Materials, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool, load_camera, start_tracking,
+    Arena, CUBE_STARTS, CursorPlugin, GrabPlugin, Grabbable, Library, Material, Materials,
+    OverlayPlugin, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool,
 };
-use terrain_hands::{HandSource, ReplaySource};
+use terrain_hands::{CameraModel, HandSource, LiveTracker, ReplaySource, capture};
 
 fn main() -> AppExit {
     terrain_hands::capture::watch_if_asked();
@@ -33,8 +29,8 @@ fn main() -> AppExit {
                 .clone()
         })
     };
-    let device = option("--camera").unwrap_or_else(|| DEFAULT_CAMERA.to_string());
-    let tracking = start_tracking(&device);
+    let device = option("--camera").unwrap_or_else(|| capture::DEFAULT_DEVICE.to_string());
+    let tracking = LiveTracker::start(&device);
     let replay = option("--replay");
     let source: Box<dyn HandSource> = match (replay.clone(), &tracking) {
         (Some(fixture), _) => Box::new(
@@ -51,12 +47,11 @@ fn main() -> AppExit {
     // A replay was recorded through its own camera: the saved calibration
     // doesn't apply to it, and calibrating on it mustn't overwrite that.
     if replay.is_none()
-        && let Some(path) = calibration_file()
+        && let Some(path) = CameraModel::saved_path()
     {
-        if let Some(camera) = load_camera(&path) {
-            grab = grab.with_camera(camera);
-        }
-        grab = grab.saving_calibration_to(path);
+        grab = grab
+            .with_camera(CameraModel::saved())
+            .saving_calibration_to(path);
     }
 
     App::new()
@@ -68,15 +63,10 @@ fn main() -> AppExit {
             ..default()
         }))
         .add_plugins(grab)
-        // Saved templates sit beside the calibration.
         .insert_resource(Library::load(
-            calibration_file().and_then(|f| Some(f.parent()?.join("templates"))),
+            terrain_hands::config_dir().map(|dir| dir.join("templates")),
         ))
-        .add_plugins((
-            CursorPlugin,
-            PreviewPlugin::new(tracking),
-            overlay::OverlayPlugin,
-        ))
+        .add_plugins((CursorPlugin, PreviewPlugin::new(tracking), OverlayPlugin))
         .add_systems(Startup, spawn_scene)
         .add_systems(
             Update,
@@ -178,8 +168,9 @@ fn show_tool(
         n => format!("\n{n} template file(s) skipped, see log"),
     };
     let line = format!(
-        "{:?} tool  (1-4 pick, [ ] adjust){value}{material}{template}{skipped}",
-        *tool
+        "{:?} tool  (1-{} pick, [ ] adjust){value}{material}{template}{skipped}",
+        *tool,
+        Tool::ALL.len()
     );
     for mut text in &mut readout {
         if text.0 != line {
@@ -215,14 +206,4 @@ fn spawn_scene(mut commands: Commands) {
     for (i, at) in CUBE_STARTS.into_iter().enumerate() {
         commands.spawn((Material(i), Transform::from_translation(at), Grabbable));
     }
-}
-
-/// Where calibration is kept: `$XDG_CONFIG_HOME/terrain`, or `~/.config/terrain`.
-fn calibration_file() -> Option<PathBuf> {
-    // An empty or relative XDG_CONFIG_HOME is ignored, as the spec says.
-    let config = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .filter(|p| p.is_absolute())
-        .or_else(|| Some(PathBuf::from(std::env::var_os("HOME")?).join(".config")))?;
-    Some(config.join("terrain").join("calibration.json"))
 }

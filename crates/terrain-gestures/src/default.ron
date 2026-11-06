@@ -4,7 +4,8 @@
 // right-clicks. A fist that moves or holds still drags the window under the
 // pointer (Super + left button, the window manager's window drag). A Vee
 // scrolls, faster the further the hand moves from where the Vee began. Two
-// open hands brought together, then spread apart quickly, toggle full screen.
+// open hands brought together, then spread apart quickly, toggle full screen;
+// two Vees, dictation.
 (
     gestures: [
         (
@@ -26,7 +27,7 @@
                         (when: [Flicked(Down, 0.15, 100)], to: "workspace_down"),
                         (when: [Pose(Open, 30)], to: "tap"),
                         (when: [Pose(Fist, 30)], to: "fist_forming"),
-                        // A move waits out the flick first: keep MovedFor()'s ms equal to Flicked()'s.
+                        // A move waits out the flick first.
                         (when: [MovedFor(0.02, 100)], to: "drag"),
                         (when: [After(600)], to: "long_press"),
                     ],
@@ -96,7 +97,7 @@
                         (when: [Flicked(Up, 0.15, 100)], to: "pane_up"),
                         (when: [Flicked(Down, 0.15, 100)], to: "pane_down"),
                         (when: [Pose(Open, 30)], to: "dropped"),
-                        // A move waits out the flick first: keep MovedFor()'s ms equal to Flicked()'s.
+                        // A move waits out the flick first.
                         (when: [MovedFor(0.02, 100)], to: "window_drag"),
                         // Held still: a drag about to start.
                         (when: [After(600)], to: "window_drag"),

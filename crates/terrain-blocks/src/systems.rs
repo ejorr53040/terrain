@@ -11,8 +11,6 @@ use crate::{Id, MoveError, Workspace};
 #[derive(Debug, Clone, PartialEq)]
 pub struct System {
     pub name: String,
-    /// The crate's directory relative to the workspace root; "" for the root crate.
-    pub dir: String,
     /// Other Systems this one depends on by path.
     pub depends_on: Vec<String>,
     /// The user's Capabilities in this System, in the order they were made.
@@ -110,7 +108,7 @@ pub(crate) struct OutsideSystem {
 }
 
 /// A crate as its Cargo.toml describes it.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Manifest {
     name: String,
     dir: String,
@@ -194,7 +192,6 @@ impl Workspace {
                     capabilities,
                     unsorted,
                     name: m.name.clone(),
-                    dir: m.dir.clone(),
                     depends_on: m
                         .deps
                         .iter()
@@ -357,7 +354,7 @@ impl Workspace {
             for (c, b) in file.children.iter().enumerate() {
                 items.push(Item {
                     file: file.name.clone(),
-                    label: format!("{} {}", b.kind, b.name),
+                    label: b.label(),
                     line: b.line,
                     id: Id(vec![f, c]),
                 });
@@ -366,7 +363,6 @@ impl Workspace {
         items
     }
 
-    /// The System an existing item belongs to.
     fn system_of(&self, item: &ItemRef) -> Result<String, MoveError> {
         let system = self
             .owner(&item.file)

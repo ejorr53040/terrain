@@ -11,7 +11,7 @@ use std::{
 
 use glam::{IVec2, Vec2};
 
-use crate::{Button, Input};
+use crate::{Action, Button};
 
 const EV_SYN: u16 = 0x00;
 const EV_KEY: u16 = 0x01;
@@ -26,6 +26,8 @@ const HI_RES_STEP: i32 = 120;
 const SYN_REPORT: u16 = 0;
 const ABS_X: u16 = 0x00;
 const ABS_Y: u16 = 0x01;
+/// The first code past the keyboard's keys.
+const BTN_MISC: u16 = 0x100;
 const BTN_LEFT: u16 = 0x110;
 const BTN_RIGHT: u16 = 0x111;
 const BTN_MIDDLE: u16 = 0x112;
@@ -202,7 +204,7 @@ impl Drop for Device {
     }
 }
 
-/// The desktop's pointer and keyboard, driven by `Input`s.
+/// The desktop's pointer and keyboard, driven by `Action`s.
 pub struct VirtualDesktop {
     pointer: Device,
     keyboard: Device,
@@ -221,9 +223,8 @@ impl VirtualDesktop {
             &[REL_WHEEL, REL_HWHEEL, REL_WHEEL_HI_RES, REL_HWHEEL_HI_RES],
             &[ABS_X, ABS_Y],
         )?;
-        // Ordinary keyboard keys too, so it's taken for a keyboard.
-        let keys: Vec<u16> = (1..=88)
-            .chain([KEY_UP, KEY_LEFT, KEY_RIGHT, KEY_DOWN, KEY_LEFTMETA]).collect();
+        // Every keyboard key: it's taken for a keyboard, and any Button's key is there.
+        let keys: Vec<u16> = (1..BTN_MISC).collect();
         let keyboard = Device::create("terrain hand keys", 2, &keys, &[], &[])?;
         Ok(Self {
             pointer,
@@ -232,14 +233,14 @@ impl VirtualDesktop {
         })
     }
 
-    pub fn apply(&mut self, input: Input) -> io::Result<()> {
+    pub fn apply(&mut self, input: Action) -> io::Result<()> {
         match input {
-            Input::PointTo(at) => {
+            Action::PointTo(at) => {
                 let at = (at.clamp(Vec2::ZERO, Vec2::ONE) * ABS_MAX as f32).round();
                 self.pointer
                     .send(&[(EV_ABS, ABS_X, at.x as i32), (EV_ABS, ABS_Y, at.y as i32)])
             }
-            Input::Scroll(by) => {
+            Action::Scroll(by) => {
                 // The wheel's y turns up the page; Scroll's goes down it.
                 let hi_res = (by * Vec2::new(1.0, -1.0) * HI_RES_STEP as f32)
                     .round()
@@ -259,28 +260,29 @@ impl VirtualDesktop {
                 }
                 self.pointer.send(&events)
             }
-            Input::Press(button) => self.button(button, 1),
-            Input::Release(button) => self.button(button, 0),
+            Action::Press(button) => self.button(button, 1),
+            Action::Release(button) => self.button(button, 0),
         }
     }
 
     fn button(&mut self, button: Button, value: i32) -> io::Result<()> {
-        match button {
-            Button::Left => self.pointer.send(&[(EV_KEY, BTN_LEFT, value)]),
-            Button::Right => self.pointer.send(&[(EV_KEY, BTN_RIGHT, value)]),
-            Button::Super => self.keyboard.send(&[(EV_KEY, KEY_LEFTMETA, value)]),
-            Button::F => self.keyboard.send(&[(EV_KEY, KEY_F, value)]),
-            Button::Ctrl => self.keyboard.send(&[(EV_KEY, KEY_LEFTCTRL, value)]),
-            Button::Alt => self.keyboard.send(&[(EV_KEY, KEY_LEFTALT, value)]),
-            Button::H => self.keyboard.send(&[(EV_KEY, KEY_H, value)]),
-            Button::J => self.keyboard.send(&[(EV_KEY, KEY_J, value)]),
-            Button::K => self.keyboard.send(&[(EV_KEY, KEY_K, value)]),
-            Button::L => self.keyboard.send(&[(EV_KEY, KEY_L, value)]),
-            Button::ArrowLeft => self.keyboard.send(&[(EV_KEY, KEY_LEFT, value)]),
-            Button::ArrowRight => self.keyboard.send(&[(EV_KEY, KEY_RIGHT, value)]),
-            Button::ArrowUp => self.keyboard.send(&[(EV_KEY, KEY_UP, value)]),
-            Button::ArrowDown => self.keyboard.send(&[(EV_KEY, KEY_DOWN, value)]),
-            Button::X => self.keyboard.send(&[(EV_KEY, KEY_X, value)]),
-        }
+        let (device, code) = match button {
+            Button::Left => (&mut self.pointer, BTN_LEFT),
+            Button::Right => (&mut self.pointer, BTN_RIGHT),
+            Button::Super => (&mut self.keyboard, KEY_LEFTMETA),
+            Button::F => (&mut self.keyboard, KEY_F),
+            Button::Ctrl => (&mut self.keyboard, KEY_LEFTCTRL),
+            Button::Alt => (&mut self.keyboard, KEY_LEFTALT),
+            Button::H => (&mut self.keyboard, KEY_H),
+            Button::J => (&mut self.keyboard, KEY_J),
+            Button::K => (&mut self.keyboard, KEY_K),
+            Button::L => (&mut self.keyboard, KEY_L),
+            Button::ArrowLeft => (&mut self.keyboard, KEY_LEFT),
+            Button::ArrowRight => (&mut self.keyboard, KEY_RIGHT),
+            Button::ArrowUp => (&mut self.keyboard, KEY_UP),
+            Button::ArrowDown => (&mut self.keyboard, KEY_DOWN),
+            Button::X => (&mut self.keyboard, KEY_X),
+        };
+        device.send(&[(EV_KEY, code, value)])
     }
 }

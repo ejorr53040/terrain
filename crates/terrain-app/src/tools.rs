@@ -19,6 +19,11 @@ pub enum Tool {
     Copy,
 }
 
+impl Tool {
+    /// Every tool, in the order keys `1`, `2`, ... pick them.
+    pub const ALL: [Tool; 4] = [Tool::Move, Tool::Round, Tool::Taper, Tool::Copy];
+}
+
 /// How much one `[` or `]` changes a tool's value.
 const STEP: f32 = 0.1;
 
@@ -28,12 +33,13 @@ pub(crate) fn use_tools(
     selection: Res<Selection>,
     mut shapes: Query<&mut Shape>,
 ) {
-    for (key, picked) in [
-        (KeyCode::Digit1, Tool::Move),
-        (KeyCode::Digit2, Tool::Round),
-        (KeyCode::Digit3, Tool::Taper),
-        (KeyCode::Digit4, Tool::Copy),
-    ] {
+    let digits: [KeyCode; Tool::ALL.len()] = [
+        KeyCode::Digit1,
+        KeyCode::Digit2,
+        KeyCode::Digit3,
+        KeyCode::Digit4,
+    ];
+    for (key, picked) in digits.into_iter().zip(Tool::ALL) {
         if keys.just_pressed(key) {
             *tool = picked;
         }
