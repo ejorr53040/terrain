@@ -209,8 +209,8 @@ pub enum Pointer {
     /// The pointer follows the hand.
     #[default]
     Follows,
-    /// The pointer stays where the gesture started, so a click lands where
-    /// it was aimed.
+    /// The pointer stays where it was when the gesture started, so a click
+    /// lands where it was aimed; once released, it glides back to the hand.
     Frozen,
 }
 

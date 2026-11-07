@@ -156,6 +156,25 @@ pub fn last_point(inputs: &[Action]) -> Option<Vec2> {
     })
 }
 
+/// Every place the pointer was sent, in order.
+pub fn points(inputs: &[Action]) -> Vec<Vec2> {
+    inputs
+        .iter()
+        .filter_map(|i| match i {
+            Action::PointTo(at) => Some(*at),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The longest single move between consecutive pointer places.
+pub fn biggest_step(points: &[Vec2]) -> f32 {
+    points
+        .windows(2)
+        .map(|w| w[0].distance(w[1]))
+        .fold(0.0, f32::max)
+}
+
 /// Where the pointer was when each button input happened.
 pub fn point_at_each_button(inputs: &[Action]) -> Vec<(Action, Option<Vec2>)> {
     let mut at = None;
