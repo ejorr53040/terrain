@@ -1,0 +1,4 @@
+commit	split	score	f1	missed	misfires	wrong_dir	stuck	dropout_ms	lag_ms	jitter_kept	description
+f72c2ef	train	168.787	0.819	7.000	7.000	0.000	1.000	1499.000	17.969	0.276	baseline
+f72c2ef	holdout	5.145	1.000	0.000	0.000	0.000	0.000	333.000	18.154	0.260	holdout check
+f72c2ef	all	172.119	0.848	7.000	7.000	0.000	1.000	1832.000	17.994	0.272	baseline all
