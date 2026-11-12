@@ -2,6 +2,8 @@
 # One autoresearch experiment: build, score, log a row to results.tsv.
 #   tools/autoresearch/run.sh "<hypothesis>" [--split train|holdout|all]
 #   tools/autoresearch/run.sh --split holdout
+#   STAGE=2 tools/autoresearch/run.sh "<hypothesis>"   re-track the raw takes
+#     first (retrack.sh), so tracker and model changes count (~2 min)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 desc="${1:-unnamed}"; shift || true
@@ -17,8 +19,13 @@ if [[ -d /opt/ort/lib && -z "${ORT_LIB_LOCATION:-}" ]]; then
 fi
 
 cargo build --release -q -p terrain-desktop --example dump_trace
+frames=()
+if [[ "${STAGE:-1}" == 2 ]]; then
+  tools/autoresearch/retrack.sh target/autoresearch/frames >/dev/null
+  frames=(--frames target/autoresearch/frames); desc="[s2] $desc"
+fi
 out=$(mktemp)
-uv run -q tools/autoresearch/metrics.py --split "$split" --json "$out" >/dev/null
+uv run -q tools/autoresearch/metrics.py --split "$split" "${frames[@]}" --json "$out" >/dev/null
 row=$(python3 - "$out" <<'EOF'
 import json, sys
 s = json.load(open(sys.argv[1]))["summary"]

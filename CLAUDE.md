@@ -23,6 +23,8 @@ detection). Baseline and parameter definitions:
 - Build the trace dumper first: `cargo build --release -p terrain-desktop --example dump_trace`
 - Score: `uv run tools/autoresearch/metrics.py [--split train|holdout] [--json out.json]`
 - One experiment: `tools/autoresearch/run.sh "<hypothesis>"` (logs to `tools/autoresearch/results.tsv`)
+- Tracker/model changes (stage 2): `STAGE=2 tools/autoresearch/run.sh "<hypothesis>"`
+  re-tracks the raw takes in `~/.cache/terrain/clips` first (`retrack.sh`, ~2 min)
 - Loop rules (what's fixed, what may change, keep/revert, holdout checks):
   `tools/autoresearch/program.md`
 - `expected.json` holds what the user *meant* (from each clip's `intent.md`);

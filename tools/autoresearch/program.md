@@ -62,11 +62,17 @@ on purpose, update intent.md if needed, and write up what changed and why.
 Gesture errors dominate: they're what the user feels. The rest breaks
 ties and rewards tracking fixes that the clips' events can't show yet.
 
-## Stage 2 data needed
+## Stage 2: tracker and model changes
 
-Raw takes, for each clip: the camera frames (or the video plus its
-timestamps) that produced `frames.json`. `record-gesture-clips.sh` caches
-them. With those, `dump_trace` can run the tracker live instead of reading
-`frames.json`, and the same metrics then score tracker and model changes:
-dropouts, spikes, bone breaks, handedness flips and the latency per frame
-on the target PC.
+`STAGE=2 tools/autoresearch/run.sh "<hypothesis>"` first re-tracks every
+clip's raw webcam take (`retrack.sh`: JPEGs cached by
+`record-gesture-clips.sh` in `~/.cache/terrain/clips`, not in git) through
+today's `HandTracker` with `--every-frame`, then scores those frames instead
+of the repo's `frames.json`. One run takes about 2 minutes. Use it for any
+change to stage-2 files; compare only against other `[s2]` rows.
+
+Stage-2 baseline at 75589c4: train 213.8, holdout 3.5 (stage 1 reads 168.8
+on the saved frames). 17 clips re-track byte-identical; `fist_flicks`,
+`full_screen_motion`, `slow_drags`, `spread_in_control` and `spread_short`
+were saved by an older tracker, and today's loses more hands on them.
+Re-tracked frames never replace the repo's `frames.json` during the loop.

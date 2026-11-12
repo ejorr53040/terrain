@@ -41,6 +41,9 @@ ROOT = Path(__file__).resolve().parents[2]
 CLIPS = ROOT / "crates" / "terrain-desktop" / "tests" / "clips"
 EXPECTED = Path(__file__).with_name("expected.json")
 DUMP = ROOT / "target" / "release" / "examples" / "dump_trace"
+# --frames DIR: score DIR/<clip>.json (re-tracked by retrack.sh, stage 2)
+# instead of the frames.json the repo keeps.
+FRAMES_DIR = None
 
 # Clips the autoresearch loop never sees while iterating: checked only to
 # accept a change, so tuning to 17 clips can't silently overfit them.
@@ -72,15 +75,19 @@ EARLY_RELEASE_MS = 50    # a drag released this long before the hand left ended 
 
 # ---------------------------------------------------------------- loading
 
+def frames_path(clip):
+    return FRAMES_DIR / f"{clip}.json" if FRAMES_DIR else CLIPS / clip / "frames.json"
+
+
 def run_trace(clip):
-    out = subprocess.run([str(DUMP), str(CLIPS / clip / "frames.json")],
+    out = subprocess.run([str(DUMP), str(frames_path(clip))],
                          check=True, capture_output=True, text=True,
                          env=os.environ)
     return [json.loads(line) for line in out.stdout.splitlines()]
 
 
 def load_frames(clip):
-    return json.loads((CLIPS / clip / "frames.json").read_text())
+    return json.loads(frames_path(clip).read_text())
 
 
 # ---------------------------------------------------------------- A. gestures
@@ -597,8 +604,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json")
     ap.add_argument("--split", choices=["all", "train", "holdout"], default="all")
+    ap.add_argument("--frames", type=Path, help="dir of re-tracked <clip>.json (stage 2)")
     ap.add_argument("clips", nargs="*")
     a = ap.parse_args()
+    global FRAMES_DIR
+    FRAMES_DIR = a.frames
     clips = a.clips or sorted(p.parent.name for p in CLIPS.glob("*/frames.json"))
     if a.split == "train":
         clips = [c for c in clips if c not in HOLDOUT]

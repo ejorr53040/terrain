@@ -72,12 +72,32 @@ change: lag up ≤ 5 ms, jitter kept up ≤ 0.05, `terrain-hands` and
 Smoke test of the loop: `PINCH_OPEN_M` 6.5 → 7.5 cm fixed the early release
 in `fast_drag_blur` but caused 2 misses (train 178.8): rejected and reverted.
 
+## Stage 2 baseline: today's tracker on the raw takes
+
+`tools/autoresearch/retrack.sh` re-tracks all 22 raw takes (about 2 min) and
+`metrics.py --frames` scores them. 17 clips come out byte-identical to the
+repo's `frames.json`; 5 were saved by an older tracker and today's does worse
+on them:
+
+| | Saved frames (stage 1) | Re-tracked (stage 2) |
+|---|---|---|
+| SCORE train / holdout / all | 168.8 / 5.1 / 172.1 | 213.8 / 3.5 / 215.4 |
+| event F1 (all) | 0.85 | 0.83 |
+| missed / misfires (all) | 7 / 7 | 9 / 6 |
+| dropout (all) | 1832 ms | 5265 ms |
+| handedness flips (all) | 25 | 24 |
+
+Worst: `fist_flicks` 0 of 4 pane moves with 2.1 s of dropout,
+`spread_short` 2.7 s of dropout and 2 missed Spreads. So the tracker
+regressed on fast fists and Spreads since those clips were saved; stage-2
+work should start there (`SEARCH_EVERY`, `REFIND_FRAMES`, region sizing).
+
 ## Limits
 
 - Clips hold the tracker's output, not camera frames, so stage 1 can only
   change what happens after landmarks (thresholds, smoothing, coasting,
-  gesture rules). Tracker, preprocessing and model changes (stage 2) need the
-  raw takes `tools/record-gesture-clips.sh` caches locally.
+  gesture rules). Stage 2 needs the raw takes `tools/record-gesture-clips.sh`
+  caches locally, so it only runs on the PC that recorded them.
 - 22 clips, one user: thresholds are coarse. Bone-break and spike thresholds
   are heuristics: use them to compare runs, not as absolute error rates.
 - Latency here is decision latency from the recorded frames; model compute
@@ -85,9 +105,9 @@ in `fast_drag_blur` but caused 2 misses (train 178.8): rejected and reverted.
 
 ## Next
 
-1. Stage 2: feed raw takes through `HandTracker` in `dump_trace`, so the same
-   metrics score `SEARCH_EVERY`, `REFIND_FRAMES`, region sizing, label voting
-   and alternative models.
+1. Stage 2: find which tracker change since 2026-10-22 lost the hands in
+   `fist_flicks` and `spread_short`, then try `SEARCH_EVERY`,
+   `REFIND_FRAMES`, region sizing, label voting and alternative models.
 2. Stage 1 ideas, in order: coasting through ≤150 ms gaps in the gesture
    engine (ADR 0008 / spread-accuracy.md step 4), pinch gap normalised by hand
    size, flick-vs-drag speed rule for fists (#28), Vee down threshold.

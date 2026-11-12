@@ -2,3 +2,5 @@ commit	split	score	f1	missed	misfires	wrong_dir	stuck	dropout_ms	lag_ms	jitter_k
 f72c2ef	train	168.787	0.819	7.000	7.000	0.000	1.000	1499.000	17.969	0.276	baseline
 f72c2ef	holdout	5.145	1.000	0.000	0.000	0.000	0.000	333.000	18.154	0.260	holdout check
 f72c2ef	all	172.119	0.848	7.000	7.000	0.000	1.000	1832.000	17.994	0.272	baseline all
+75589c4+	train	213.781	0.800	9.000	6.000	0.000	1.000	5099.000	17.910	0.276	[s2] baseline: today's tracker on raw takes
+75589c4+	holdout	3.464	1.000	0.000	0.000	0.000	0.000	166.000	18.040	0.258	[s2] holdout check
