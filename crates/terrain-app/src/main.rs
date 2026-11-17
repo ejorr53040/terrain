@@ -12,6 +12,8 @@
 //! and `T` saves the selection's build as one, in `templates` beside it. `O` shows the overlay: tools and the
 //! template library with search.
 
+mod head_look_prototype;
+
 use bevy::prelude::*;
 use terrain_app::{
     Arena, CUBE_STARTS, CursorPlugin, GrabPlugin, Grabbable, Library, Material, Materials,
@@ -67,6 +69,7 @@ fn main() -> AppExit {
             terrain_hands::config_dir().map(|dir| dir.join("templates")),
         ))
         .add_plugins((CursorPlugin, PreviewPlugin::new(tracking), OverlayPlugin))
+        .add_plugins(head_look_prototype::HeadLookPrototypePlugin)
         .add_systems(Startup, spawn_scene)
         .add_systems(
             Update,
