@@ -6705,6 +6705,7 @@ dependencies = [
  "serde",
  "serde_json",
  "terrain-hands",
+ "terrain-head",
 ]
 
 [[package]]

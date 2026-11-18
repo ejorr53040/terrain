@@ -8,6 +8,7 @@ mod calibration;
 mod cursor;
 mod depth_rotation;
 mod grab;
+mod head_look;
 mod materials;
 mod overlay_pointer;
 mod physics;

@@ -15,6 +15,10 @@ pub struct Requests {
     pub calibrate: bool,
     /// Show or hide the webcam preview.
     pub preview: bool,
+    /// Switch Head look on or off.
+    pub head_look: bool,
+    /// Recenter Head look.
+    pub recenter: bool,
 }
 
 pub(crate) fn press_keys(keys: Res<ButtonInput<KeyCode>>, mut requests: ResMut<Requests>) {
@@ -28,4 +32,9 @@ pub(crate) fn press_keys(keys: Res<ButtonInput<KeyCode>>, mut requests: ResMut<R
     ] {
         *request |= keys.just_pressed(key);
     }
+    // `H` switches Head look on or off; `Shift+H` Recenters.
+    let h = keys.just_pressed(KeyCode::KeyH);
+    let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+    r.head_look |= h && !shift;
+    r.recenter |= h && shift;
 }
