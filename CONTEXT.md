@@ -173,3 +173,17 @@ _Avoid_: Hot corner, drawer
 **Overlay pointer**:
 A hand cursor over the Overlay working it like a mouse: a pinch clicks, a pinch-drag moves a slider at half the hand's speed once the hand has moved past a small dead zone (so a tap's drift doesn't turn the click into a drag). A pinch that starts over the Overlay never grabs a Shape. The first hand in owns it until it leaves.
 _Avoid_: Virtual mouse
+
+### Head look
+
+**Head look**:
+Where the head is turned, read from AirPods motion: yaw (+ left) and pitch (+ down) in degrees from Straight ahead, roll ignored, with a small dead zone. It is Off (with why: switched off, off the head, disconnected, unavailable, no daemon), Starting, or On. The airpods-tui daemon streams the motion (ADR 0009); one crate turns it into Head look for the cube world and gridboard (ADR 0010).
+_Avoid_: Head tracking, gaze, head pose
+
+**Straight ahead**:
+The orientation Head look measures from: taken about half a second after switching on (the first sample is junk), and again on a Recenter.
+_Avoid_: Origin, neutral, zero
+
+**Recenter**:
+Making the head's current orientation Straight ahead, so it reads 0, 0. Only while Head look is On.
+_Avoid_: Calibrate, reset, zero

@@ -6757,6 +6757,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "terrain-head"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
