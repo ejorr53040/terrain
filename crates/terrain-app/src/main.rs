@@ -11,13 +11,18 @@
 //! puts the scene back. `Tab` picks a template, `P` stamps it at the cursor
 //! and `T` saves the selection's build as one, in `templates` beside it. `O` shows the overlay: tools and the
 //! template library with search.
+//!
+//! `H` switches Head look on and off: with AirPods streaming motion through the
+//! airpods-tui daemon, turning your head orbits the camera round the scene.
+//! `Shift+H` Recenters.
 
 use bevy::prelude::*;
 use terrain_app::{
-    Arena, CUBE_STARTS, CursorPlugin, GrabPlugin, Grabbable, Library, Material, Materials,
-    OverlayPlugin, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool,
+    Arena, CUBE_STARTS, CursorPlugin, GrabPlugin, Grabbable, HeadOrbit, HeadOrbitPlugin, Library,
+    Material, Materials, OverlayPlugin, PreviewPlugin, SCENE_CAMERA_AT, Selection, Shape, Tool,
 };
 use terrain_hands::{CameraModel, HandSource, LiveTracker, ReplaySource, capture};
+use terrain_head::{HeadLookSettings, HeadTracker};
 
 fn main() -> AppExit {
     terrain_hands::capture::watch_if_asked();
@@ -67,6 +72,9 @@ fn main() -> AppExit {
             terrain_hands::config_dir().map(|dir| dir.join("templates")),
         ))
         .add_plugins((CursorPlugin, PreviewPlugin::new(tracking), OverlayPlugin))
+        .add_plugins(HeadOrbitPlugin::new(HeadTracker::new(
+            HeadLookSettings::default(),
+        )))
         .add_systems(Startup, spawn_scene)
         .add_systems(
             Update,
@@ -136,7 +144,8 @@ fn outline_selection(
 #[derive(Component)]
 struct ToolReadout;
 
-/// The tool, and what the selection is made of.
+/// The tool, what the selection is made of, and what Head look is doing.
+#[allow(clippy::too_many_arguments)]
 fn show_tool(
     tool: Res<Tool>,
     selection: Res<Selection>,
@@ -145,6 +154,7 @@ fn show_tool(
     made_of: Query<&Material>,
     shapes: Query<&Shape>,
     mut readout: Query<&mut Text, With<ToolReadout>>,
+    head: Res<HeadOrbit>,
 ) {
     let value = match (*tool, selection.0.and_then(|e| shapes.get(e).ok())) {
         (Tool::Round, Some(s)) => format!("   roundness {:.1}", s.roundness),
@@ -168,9 +178,10 @@ fn show_tool(
         n => format!("\n{n} template file(s) skipped, see log"),
     };
     let line = format!(
-        "{:?} tool  (1-{} pick, [ ] adjust){value}{material}{template}{skipped}",
+        "{:?} tool  (1-{} pick, [ ] adjust){value}{material}{template}{skipped}\n{}",
         *tool,
-        Tool::ALL.len()
+        Tool::ALL.len(),
+        head.status()
     );
     for mut text in &mut readout {
         if text.0 != line {

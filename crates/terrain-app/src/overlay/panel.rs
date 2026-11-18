@@ -1,10 +1,10 @@
 //! The overlay's panel: the tool palette, the template Library and the
-//! physics settings with the material presets. Its controls only write the
+//! physics settings with the material presets, and Head look's gains. Its controls only write the
 //! resources the keys write, so they behave exactly as the keys do.
 
 use crate::{
-    Arena, Library, Material, Materials, OverlayArea, OverlayOpen, OverlayPointer, PhysicsSettings,
-    Requests, Selection, Shape, Tool, grab::STRETCH_MIN,
+    Arena, HeadOrbitSettings, Library, Material, Materials, OverlayArea, OverlayOpen,
+    OverlayPointer, PhysicsSettings, Requests, Selection, Shape, Tool, grab::STRETCH_MIN,
 };
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -75,6 +75,7 @@ fn show(
     mut requests: ResMut<Requests>,
     mut physics: ResMut<PhysicsSettings>,
     mut presets: ResMut<Materials>,
+    head: Option<ResMut<HeadOrbitSettings>>,
     selection: Res<Selection>,
     mut made_of: Query<&mut Material>,
     mut shapes: Query<&mut Shape>,
@@ -208,6 +209,26 @@ fn show(
                 );
                 if p != *physics {
                     *physics = p;
+                }
+                // Absent when the app runs without Head look (tests of other features).
+                if let Some(mut head) = head {
+                    ui.separator();
+                    ui.heading("Head look");
+                    ui.horizontal(|ui| {
+                        requests.head_look |= ui.button("On/off (H)").clicked();
+                        requests.recenter |= ui.button("Recenter (Shift+H)").clicked();
+                    });
+                    let mut h = head.clone();
+                    ui.add(egui::Slider::new(&mut h.yaw_gain, 1.0..=12.0).text("turn gain"));
+                    ui.add(egui::Slider::new(&mut h.pitch_gain, 1.0..=8.0).text("nod gain"));
+                    ui.add(
+                        egui::Slider::new(&mut h.dead_zone_deg, 0.0..=10.0)
+                            .suffix("°")
+                            .text("dead zone"),
+                    );
+                    if h != *head {
+                        *head = h;
+                    }
                 }
                 ui.separator();
                 ui.heading("Materials");
