@@ -229,3 +229,39 @@ fn with_no_daemon_switching_on_is_off_at_once() {
     assert_eq!(tracker.look(), HeadLook::Off(OffReason::NoDaemon));
     assert!(start.elapsed() < Duration::from_millis(100));
 }
+
+#[test]
+fn no_sample_within_the_timeout_is_unavailable_and_motion_is_no_longer_wanted() {
+    let daemon = Daemon::start();
+    let mut tracker = daemon
+        .tracker()
+        .no_sample_timeout(Duration::from_millis(200));
+    tracker.switch_on();
+    let mut client = daemon.accept();
+    assert_eq!(client.receive(), switch_on());
+    client.send_snapshot();
+    assert_eq!(tracker.look(), HeadLook::Starting, "not timed out yet");
+    assert_eq!(
+        look_until(&mut tracker, |l| matches!(l, HeadLook::Off(_))),
+        HeadLook::Off(OffReason::Unavailable)
+    );
+    assert_eq!(client.receive(), switch_off());
+}
+
+#[test]
+fn a_sample_within_the_timeout_keeps_it_starting() {
+    let daemon = Daemon::start();
+    let mut tracker = daemon
+        .tracker()
+        .no_sample_timeout(Duration::from_millis(100));
+    tracker.switch_on();
+    let mut client = daemon.accept();
+    assert_eq!(client.receive(), switch_on());
+    client.send_sample(0, Quat::IDENTITY);
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(
+        tracker.look(),
+        HeadLook::Starting,
+        "the junk first sample came, so there is a session"
+    );
+}

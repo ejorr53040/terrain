@@ -6,6 +6,7 @@ use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,11 @@ use crate::{HeadLook, HeadLookSettings, OffReason};
 /// The daemon refuses larger messages; so do we.
 const MAX_MESSAGE: usize = 16 * 1024 * 1024;
 
+/// How long after switching on a first sample may take before Head look gives up as
+/// Unavailable. Longer than the daemon's own 5 s, so it only catches there being no AirPods
+/// session at all, or one that never streams.
+const NO_SAMPLE_TIMEOUT: Duration = Duration::from_secs(8);
+
 /// Owns the connection to the airpods-tui daemon on a background thread.
 pub struct HeadTracker {
     /// Where the daemon listens; `None` when `$XDG_RUNTIME_DIR` is unset.
@@ -23,6 +29,9 @@ pub struct HeadTracker {
     daemon: Option<Daemon>,
     /// The AirPods whose motion is being followed: the first to send a sample since switching on.
     motion_mac: Option<String>,
+    /// When switched on, until the first sample arrives.
+    waiting_since: Option<Instant>,
+    no_sample_timeout: Duration,
 }
 
 impl HeadTracker {
@@ -45,7 +54,16 @@ impl HeadTracker {
             look: Look::new(settings),
             daemon: None,
             motion_mac: None,
+            waiting_since: None,
+            no_sample_timeout: NO_SAMPLE_TIMEOUT,
         }
+    }
+
+    /// Gives up as Off(Unavailable) when no sample arrives within `timeout` of switching on,
+    /// instead of the default 8 s.
+    pub fn no_sample_timeout(mut self, timeout: Duration) -> Self {
+        self.no_sample_timeout = timeout;
+        self
     }
 
     /// Connects if needed and asks the daemon for motion: Starting, or Off(NoDaemon) at once
@@ -56,6 +74,7 @@ impl HeadTracker {
             self.daemon = self.socket.as_ref().and_then(|s| Daemon::connect(s).ok());
         }
         self.motion_mac = None;
+        self.waiting_since = Some(Instant::now());
         self.look.switch_on();
         if !self.send(Command::HeadMotion(true)) {
             self.look.end(OffReason::NoDaemon);
@@ -93,16 +112,25 @@ impl HeadTracker {
         self.look.get()
     }
 
-    /// Applies what the daemon sent since last time.
+    /// Applies what the daemon sent since last time, then gives up if no sample came in time.
     fn drain(&mut self) {
         while let Some(daemon) = &self.daemon {
             match daemon.events.try_recv() {
                 Ok(event) => self.apply(event),
-                Err(TryRecvError::Empty) => return,
+                Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     self.daemon = None;
                     self.look.end(OffReason::NoDaemon);
                 }
+            }
+        }
+        if self
+            .waiting_since
+            .is_some_and(|since| since.elapsed() >= self.no_sample_timeout)
+        {
+            self.waiting_since = None;
+            if self.look.end(OffReason::Unavailable) {
+                self.send(Command::HeadMotion(false));
             }
         }
     }
@@ -111,6 +139,7 @@ impl HeadTracker {
         match event {
             DaemonEvent::AACPEvent(mac, AacpEvent::HeadMotion(sample)) => {
                 if *self.motion_mac.get_or_insert_with(|| mac.clone()) == mac {
+                    self.waiting_since = None;
                     self.look.sample(sample);
                 }
             }
